@@ -124,6 +124,8 @@ export const autoCutJobSchema = z.object({
 	eta_scope: z.enum(["stage", "job"]).nullable().optional(),
 	stage_key: z.string().nullable().optional(),
 	stage_progress: z.number().min(0).max(1).nullable().optional(),
+	step_index: z.number().int().min(1).nullable().optional(),
+	step_count: z.number().int().min(1).nullable().optional(),
 	rate: z
 		.object({ value: z.number().nonnegative(), unit: z.string() })
 		.nullable()

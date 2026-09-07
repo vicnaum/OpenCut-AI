@@ -322,7 +322,12 @@ export function TimelineElement({
 						isDropTarget={isDropTarget}
 						autoCutLocked={autoCutLocked}
 					/>
-					<AutoCutClipStatus status={autoCutStatus} />
+					<AutoCutClipStatus
+						status={autoCutStatus}
+						viewportRef={viewportRef}
+						clipWidth={elementWidth}
+						position={displayedStartTime}
+					/>
 					{isSelected && !autoCutLocked && (
 						<div className="pointer-events-none absolute inset-0 overflow-hidden">
 							<KeyframeIndicators

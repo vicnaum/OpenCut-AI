@@ -3,6 +3,49 @@ import type { AutoCutJob } from "@/types/autocut";
 
 export const AUTOCUT_LOCK_REASON = "AutoCut is processing this clip";
 
+export function autoCutStep(job: AutoCutJob | null | undefined) {
+	const key = job?.stage_key;
+	const stage = job?.stage ?? "Preparing video";
+	const steps: Record<string, number> = {
+		proxy: 1,
+		range: 1,
+		motion: 1,
+		upload: 2,
+		"file-processing": 2,
+		coarse: 3,
+		fine: 4,
+		sheets: 5,
+	};
+	const legacyStep = /review|sheets|complete/i.test(stage)
+		? 5
+		: /verif/i.test(stage)
+			? 4
+			: /finding|candidate moments/i.test(stage)
+				? 3
+				: /upload/i.test(stage)
+					? 2
+					: 1;
+	const index = job?.step_index ?? (key ? steps[key] : undefined) ?? legacyStep;
+	const count = job?.step_count ?? 5;
+	const fraction = job?.stage_progress;
+	const percent = fraction == null ? "" : ` ${Math.round(fraction * 100)}%`;
+	return `Step ${index} of ${count}: ${stage}${percent}`;
+}
+
+export function visibleClipInterval(
+	clipLeft: number,
+	clipRight: number,
+	viewportLeft: number,
+	viewportRight: number,
+) {
+	const left = Math.max(clipLeft, viewportLeft);
+	const right = Math.min(clipRight, viewportRight);
+	return {
+		left: Math.max(0, left - clipLeft),
+		width: Math.max(0, right - left),
+	};
+}
+
 export function isAutoCutProcessing(session: AutoCutSession | undefined) {
 	if (
 		!session ||

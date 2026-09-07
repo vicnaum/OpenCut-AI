@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, type RefObject } from "react";
 import { useEditor } from "@/hooks/use-editor";
 import { useAutoCutStore } from "@/stores/autocut-store";
 import {
 	autoCutEta,
+	autoCutStep,
+	visibleClipInterval,
 	autoCutTarget,
 	AUTOCUT_LOCK_REASON,
 } from "@/lib/autocut-status";
@@ -31,13 +33,11 @@ export function useAutoCutClipStatus(elementId: string) {
 	}, [processing]);
 	if (processing) {
 		const job = starting ? null : session?.job;
-		const stage = job?.stage ?? "Preparing video";
-		const percent = Math.round((job?.progress ?? 0) * 100);
 		const eta = autoCutEta(job, now);
 		return {
 			kind: "processing" as const,
-			label: `AutoCut processing… ${percent}% (${eta})`,
-			detail: stage,
+			label: autoCutStep(job),
+			detail: eta,
 		};
 	}
 	if (feedback?.elements.some((item) => item.elementId === elementId))
@@ -63,13 +63,67 @@ export function useAutoCutClipStatus(elementId: string) {
 
 export function AutoCutClipStatus({
 	status,
+	viewportRef,
+	clipWidth,
+	position,
 }: {
 	status: ReturnType<typeof useAutoCutClipStatus>;
+	viewportRef: RefObject<HTMLDivElement | null>;
+	clipWidth: number;
+	position: number;
 }) {
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [visible, setVisible] = useState({ left: 0, width: 0 });
+	const active = !!status;
+	useEffect(() => {
+		const node = containerRef.current;
+		const viewport = viewportRef.current;
+		if (
+			!active ||
+			!node ||
+			!viewport ||
+			!Number.isFinite(position) ||
+			clipWidth <= 0
+		)
+			return;
+		let scheduled = 0;
+		const measure = () => {
+			scheduled = 0;
+			const clip = node.getBoundingClientRect();
+			const bounds = viewport.getBoundingClientRect();
+			const next = visibleClipInterval(
+				clip.left,
+				clip.right,
+				bounds.left,
+				bounds.right,
+			);
+			setVisible((previous) =>
+				previous.left === next.left && previous.width === next.width
+					? previous
+					: next,
+			);
+		};
+		const schedule = () => {
+			if (!scheduled) scheduled = requestAnimationFrame(measure);
+		};
+		const observer = new ResizeObserver(schedule);
+		observer.observe(node);
+		observer.observe(viewport);
+		viewport.addEventListener("scroll", schedule, { passive: true });
+		window.addEventListener("resize", schedule);
+		schedule();
+		return () => {
+			cancelAnimationFrame(scheduled);
+			observer.disconnect();
+			viewport.removeEventListener("scroll", schedule);
+			window.removeEventListener("resize", schedule);
+		};
+	}, [active, viewportRef, clipWidth, position]);
 	if (!status) return null;
 	return (
 		<>
 			<div
+				ref={containerRef}
 				data-testid="autocut-clip-status"
 				data-state={status.kind}
 				role="status"
@@ -87,7 +141,15 @@ export function AutoCutClipStatus({
 							: "bg-red-900/90",
 				)}
 			>
-				<div className="sticky left-1 mx-auto min-w-0 max-w-full px-2 text-center text-[11px] font-medium leading-tight drop-shadow-md">
+				<div
+					data-testid="autocut-visible-label"
+					style={{
+						left: visible.left,
+						width: visible.width,
+						visibility: visible.width > 0 ? "visible" : "hidden",
+					}}
+					className="absolute top-1/2 -translate-y-1/2 min-w-0 px-2 text-center text-[11px] font-medium leading-tight drop-shadow-md"
+				>
 					<div className="truncate">{status.label}</div>
 					{status.detail && (
 						<div className="mt-1 truncate text-[10px] font-normal">

@@ -16,7 +16,7 @@ import { useBackgroundTasksStore } from "@/stores/background-tasks-store";
 import { autoCutSettingsSchema, type AutoCutJob } from "@/types/autocut";
 import type { EditorCore } from "@/core";
 import { invokeAction, type TActionArgsMap } from "@/lib/actions";
-import { autoCutTarget } from "@/lib/autocut-status";
+import { autoCutTarget, autoCutStep } from "@/lib/autocut-status";
 
 const active = (job: AutoCutJob | null | undefined) =>
 	job?.status === "running" || job?.status === "queued";
@@ -294,7 +294,7 @@ export function useAutoCutController() {
 			tasks.updateTask(id, {
 				progress: current.error
 					? `${current.error} Retrying…`
-					: `${job?.stage ?? "Starting analysis"} · ${Math.round((job?.progress ?? 0) * 100)}%`,
+					: autoCutStep(job),
 			});
 			return;
 		}

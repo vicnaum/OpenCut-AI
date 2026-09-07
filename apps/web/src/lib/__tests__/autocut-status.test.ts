@@ -1,11 +1,57 @@
 import { describe, expect, test } from "bun:test";
 import type { EditorCore } from "@/core";
 import { TimelineManager } from "@/core/managers/timeline-manager";
-import { autoCutEta, isAutoCutProcessing } from "@/lib/autocut-status";
+import {
+	autoCutEta,
+	autoCutStep,
+	visibleClipInterval,
+	isAutoCutProcessing,
+} from "@/lib/autocut-status";
 import type { AutoCutSession } from "@/stores/autocut-store";
 import type { AutoCutJob } from "@/types/autocut";
 
 describe("AutoCut processing protection", () => {
+	test("step percentages never use the aggregate job percentage", () => {
+		const job = {
+			stage: "Uploading",
+			progress: 0.18,
+			stage_key: "upload",
+			stage_progress: 0.63,
+		} as AutoCutJob;
+		expect(autoCutStep(job)).toBe("Step 2 of 5: Uploading 63%");
+		expect(autoCutStep({ ...job, stage_progress: null })).toBe(
+			"Step 2 of 5: Uploading",
+		);
+		expect(
+			autoCutStep({
+				...job,
+				stage: "Verifying",
+				step_index: 4,
+				step_count: 5,
+				stage_progress: 0.25,
+			}),
+		).toBe("Step 4 of 5: Verifying 25%");
+	});
+
+	test("visible label bounds follow either clipped side, zoom and offscreen clips", () => {
+		expect(visibleClipInterval(-1000, 2000, 150, 1400)).toEqual({
+			left: 1150,
+			width: 1250,
+		});
+		expect(visibleClipInterval(500, 2000, 150, 1400)).toEqual({
+			left: 0,
+			width: 900,
+		});
+		expect(visibleClipInterval(-1000, 400, 150, 1400)).toEqual({
+			left: 1150,
+			width: 250,
+		});
+		expect(visibleClipInterval(300, 900, 150, 1400)).toEqual({
+			left: 0,
+			width: 600,
+		});
+		expect(visibleClipInterval(1500, 2000, 150, 1400).width).toBe(0);
+	});
 	test("all requested timeline editing paths stop before issuing a command", () => {
 		let issued = 0;
 		const timeline = new TimelineManager({
