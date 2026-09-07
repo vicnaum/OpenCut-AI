@@ -119,6 +119,15 @@ export const autoCutJobSchema = z.object({
 	status: z.enum(["queued", "running", "completed", "failed", "cancelled"]),
 	stage: z.string(),
 	progress: z.number().min(0).max(1),
+	updated_at: z.number().optional(),
+	eta_seconds: z.number().nonnegative().nullable().optional(),
+	eta_scope: z.enum(["stage", "job"]).nullable().optional(),
+	stage_key: z.string().nullable().optional(),
+	stage_progress: z.number().min(0).max(1).nullable().optional(),
+	rate: z
+		.object({ value: z.number().nonnegative(), unit: z.string() })
+		.nullable()
+		.optional(),
 	error: z.string().nullable(),
 	cutlist: autoCutlistSchema.nullable(),
 	sheets: z.array(z.object({ id: z.number().int(), url: z.string() })),

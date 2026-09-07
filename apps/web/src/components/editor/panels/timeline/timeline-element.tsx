@@ -3,6 +3,8 @@
 import { useEditor } from "@/hooks/use-editor";
 import { useAssetsPanelStore } from "@/stores/assets-panel-store";
 import AudioWaveform from "./audio-waveform";
+import { AutoCutClipStatus, useAutoCutClipStatus } from "./autocut-clip-status";
+import { AUTOCUT_LOCK_REASON } from "@/lib/autocut-status";
 import { VideoFilmstrip } from "./video-filmstrip";
 import { useTimelineElementResize } from "@/hooks/timeline/element/use-element-resize";
 import {
@@ -201,6 +203,8 @@ export function TimelineElement({
 }: TimelineElementProps) {
 	const editor = useEditor();
 	const { selectedElements } = useElementSelection();
+	const autoCutStatus = useAutoCutClipStatus(element.id);
+	const autoCutLocked = autoCutStatus?.kind === "processing";
 	const { requestRevealMedia } = useAssetsPanelStore();
 
 	let mediaAsset: MediaAsset | null = null;
@@ -277,6 +281,13 @@ export function TimelineElement({
 		<ContextMenu>
 			<ContextMenuTrigger asChild>
 				<div
+					title={autoCutLocked ? AUTOCUT_LOCK_REASON : autoCutStatus?.label}
+					onMouseDownCapture={(event) => {
+						if (autoCutLocked && event.button === 0) {
+							event.stopPropagation();
+							event.preventDefault();
+						}
+					}}
 					className="absolute top-0 h-full select-none"
 					style={{
 						left: `${elementLeft}px`,
@@ -309,8 +320,10 @@ export function TimelineElement({
 						onElementMouseDown={onElementMouseDown}
 						handleResizeStart={handleResizeStart}
 						isDropTarget={isDropTarget}
+						autoCutLocked={autoCutLocked}
 					/>
-					{isSelected && (
+					<AutoCutClipStatus status={autoCutStatus} />
+					{isSelected && !autoCutLocked && (
 						<div className="pointer-events-none absolute inset-0 overflow-hidden">
 							<KeyframeIndicators
 								indicators={keyframeIndicators}
@@ -328,6 +341,7 @@ export function TimelineElement({
 			<ContextMenuContent className="w-64">
 				{element.type === "video" && (
 					<ContextMenuItem
+						disabled={autoCutLocked}
 						icon={<HugeiconsIcon icon={MagicWand05Icon} />}
 						onClick={() =>
 							invokeAction("autocut-open", {
@@ -407,6 +421,7 @@ function ElementInner({
 	onElementMouseDown,
 	handleResizeStart,
 	isDropTarget = false,
+	autoCutLocked = false,
 }: {
 	filmstrip: Pick<
 		ElementContentProps,
@@ -429,6 +444,7 @@ function ElementInner({
 		side: "left" | "right";
 	}) => void;
 	isDropTarget?: boolean;
+	autoCutLocked?: boolean;
 }) {
 	const opacityClass =
 		(canElementBeHidden(element) && element.hidden) || isDropTarget
@@ -477,16 +493,18 @@ function ElementInner({
 				</button>
 			</div>
 
-			{element.type !== "audio" && element.type !== "effect" && (
-				<div className="sticky left-1 mt-1 ml-1 w-fit">
-					<EffectsButton
-						element={element as VisualElement}
-						trackId={track.id}
-					/>
-				</div>
-			)}
+			{!autoCutLocked &&
+				element.type !== "audio" &&
+				element.type !== "effect" && (
+					<div className="sticky left-1 mt-1 ml-1 w-fit">
+						<EffectsButton
+							element={element as VisualElement}
+							trackId={track.id}
+						/>
+					</div>
+				)}
 
-			{isSelected && (
+			{isSelected && !autoCutLocked && (
 				<>
 					<ResizeHandle
 						side="left"
@@ -719,45 +737,51 @@ function AudioVolumeLine({
 	const isDragging = useRef(false);
 	const startVolume = useRef(volume);
 
-	const calcVolume = useCallback((e: MouseEvent) => {
-		const container = containerRef.current;
-		if (!container) return volume;
-		const rect = container.getBoundingClientRect();
-		const y = e.clientY - rect.top;
-		const ratio = 1 - Math.max(0, Math.min(1, y / rect.height));
-		return Math.round(ratio * 100) / 100;
-	}, [volume]);
+	const calcVolume = useCallback(
+		(e: MouseEvent) => {
+			const container = containerRef.current;
+			if (!container) return volume;
+			const rect = container.getBoundingClientRect();
+			const y = e.clientY - rect.top;
+			const ratio = 1 - Math.max(0, Math.min(1, y / rect.height));
+			return Math.round(ratio * 100) / 100;
+		},
+		[volume],
+	);
 
-	const handleMouseDown = useCallback((e: React.MouseEvent) => {
-		// Only start volume drag if the click is near the volume line (within 6px)
-		const container = containerRef.current;
-		if (!container) return;
-		const rect = container.getBoundingClientRect();
-		const lineY = rect.top + rect.height * (1 - (volumePercent / 100));
-		const distanceFromLine = Math.abs(e.clientY - lineY);
-		if (distanceFromLine > 6) return;
+	const handleMouseDown = useCallback(
+		(e: React.MouseEvent) => {
+			// Only start volume drag if the click is near the volume line (within 6px)
+			const container = containerRef.current;
+			if (!container) return;
+			const rect = container.getBoundingClientRect();
+			const lineY = rect.top + rect.height * (1 - volumePercent / 100);
+			const distanceFromLine = Math.abs(e.clientY - lineY);
+			if (distanceFromLine > 6) return;
 
-		e.stopPropagation();
-		e.preventDefault();
-		isDragging.current = true;
-		startVolume.current = volume;
+			e.stopPropagation();
+			e.preventDefault();
+			isDragging.current = true;
+			startVolume.current = volume;
 
-		const handleMove = (ev: MouseEvent) => {
-			if (!isDragging.current) return;
-			onVolumeChange(calcVolume(ev));
-		};
+			const handleMove = (ev: MouseEvent) => {
+				if (!isDragging.current) return;
+				onVolumeChange(calcVolume(ev));
+			};
 
-		const handleUp = (ev: MouseEvent) => {
-			if (!isDragging.current) return;
-			isDragging.current = false;
-			onVolumeCommit(calcVolume(ev));
-			window.removeEventListener("mousemove", handleMove);
-			window.removeEventListener("mouseup", handleUp);
-		};
+			const handleUp = (ev: MouseEvent) => {
+				if (!isDragging.current) return;
+				isDragging.current = false;
+				onVolumeCommit(calcVolume(ev));
+				window.removeEventListener("mousemove", handleMove);
+				window.removeEventListener("mouseup", handleUp);
+			};
 
-		window.addEventListener("mousemove", handleMove);
-		window.addEventListener("mouseup", handleUp);
-	}, [volume, volumePercent, onVolumeChange, onVolumeCommit, calcVolume]);
+			window.addEventListener("mousemove", handleMove);
+			window.addEventListener("mouseup", handleUp);
+		},
+		[volume, volumePercent, onVolumeChange, onVolumeCommit, calcVolume],
+	);
 
 	return (
 		<div
@@ -871,21 +895,25 @@ const ELEMENT_CONTENT_RENDERERS: Record<
 					volumePercent={volumePercent}
 					onVolumeChange={(newVolume) => {
 						editor.timeline.updateElements({
-							updates: [{
-								trackId: track.id,
-								elementId: element.id,
-								updates: { volume: newVolume },
-							}],
+							updates: [
+								{
+									trackId: track.id,
+									elementId: element.id,
+									updates: { volume: newVolume },
+								},
+							],
 							pushHistory: false,
 						});
 					}}
 					onVolumeCommit={(newVolume) => {
 						editor.timeline.updateElements({
-							updates: [{
-								trackId: track.id,
-								elementId: element.id,
-								updates: { volume: newVolume },
-							}],
+							updates: [
+								{
+									trackId: track.id,
+									elementId: element.id,
+									updates: { volume: newVolume },
+								},
+							],
 							pushHistory: true,
 						});
 					}}

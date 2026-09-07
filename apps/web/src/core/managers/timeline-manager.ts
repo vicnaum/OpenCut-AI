@@ -44,12 +44,31 @@ import {
 } from "@/lib/commands/timeline";
 import { BatchCommand, PreviewTracker } from "@/lib/commands";
 import type { InsertElementParams } from "@/lib/commands/timeline/element/insert-element";
+import { toast } from "sonner";
 
 export class TimelineManager {
 	private listeners = new Set<() => void>();
 	private previewTracker = new PreviewTracker<TimelineTrack[]>();
+	private editLocks = new Set<(elementId: string) => boolean>();
 
 	constructor(private editor: EditorCore) {}
+
+	addElementEditLock(check: (elementId: string) => boolean): () => void {
+		this.editLocks.add(check);
+		return () => {
+			this.editLocks.delete(check);
+		};
+	}
+
+	isElementEditLocked(elementId: string): boolean {
+		return [...this.editLocks].some((check) => check(elementId));
+	}
+
+	canEditElements(elementIds: string[]): boolean {
+		if (!elementIds.some((id) => this.isElementEditLocked(id))) return true;
+		toast.info("AutoCut is processing this clip", { id: "autocut-clip-lock" });
+		return false;
+	}
 
 	addTrack({ type, index }: { type: TrackType; index?: number }): string {
 		const command = new AddTrackCommand(type, index);
@@ -58,6 +77,14 @@ export class TimelineManager {
 	}
 
 	removeTrack({ trackId }: { trackId: string }): void {
+		if (
+			!this.canEditElements(
+				this.getTracks()
+					.find((track) => track.id === trackId)
+					?.elements.map((element) => element.id) ?? [],
+			)
+		)
+			return;
 		const command = new RemoveTrackCommand(trackId);
 		this.editor.command.execute({ command });
 	}
@@ -84,6 +111,7 @@ export class TimelineManager {
 		pushHistory?: boolean;
 		rippleEnabled?: boolean;
 	}): void {
+		if (!this.canEditElements([elementId])) return;
 		const command = new UpdateElementTrimCommand({
 			elementId,
 			trimStart,
@@ -110,6 +138,7 @@ export class TimelineManager {
 		duration: number;
 		pushHistory?: boolean;
 	}): void {
+		if (!this.canEditElements([elementId])) return;
 		const command = new UpdateElementDurationCommand({
 			trackId,
 			elementId,
@@ -129,6 +158,8 @@ export class TimelineManager {
 		elements: { trackId: string; elementId: string }[];
 		startTime: number;
 	}): void {
+		if (!this.canEditElements(elements.map((element) => element.elementId)))
+			return;
 		const command = new UpdateElementStartTimeCommand({
 			elements,
 			startTime,
@@ -151,6 +182,7 @@ export class TimelineManager {
 		createTrack?: { type: TrackType; index: number };
 		rippleEnabled?: boolean;
 	}): void {
+		if (!this.canEditElements([elementId])) return;
 		const command = new MoveElementCommand({
 			sourceTrackId,
 			targetTrackId,
@@ -183,6 +215,8 @@ export class TimelineManager {
 		retainSide?: "both" | "left" | "right";
 		rippleEnabled?: boolean;
 	}): { trackId: string; elementId: string }[] {
+		if (!this.canEditElements(elements.map((element) => element.elementId)))
+			return [];
 		const command = new SplitElementsCommand({
 			elements,
 			splitTime,
@@ -242,6 +276,8 @@ export class TimelineManager {
 		elements: { trackId: string; elementId: string }[];
 		rippleEnabled?: boolean;
 	}): void {
+		if (!this.canEditElements(elements.map((element) => element.elementId)))
+			return;
 		const command = new DeleteElementsCommand({ elements, rippleEnabled });
 		this.editor.command.execute({ command });
 	}
@@ -257,6 +293,8 @@ export class TimelineManager {
 		}>;
 		pushHistory?: boolean;
 	}): void {
+		if (!this.canEditElements(updates.map((update) => update.elementId)))
+			return;
 		const commands = updates.map(
 			({ trackId, elementId, updates: elementUpdates }) =>
 				new UpdateElementCommand({
@@ -283,6 +321,7 @@ export class TimelineManager {
 		elementId: string;
 		effectType: string;
 	}): string {
+		if (!this.canEditElements([elementId])) return "";
 		const command = new AddClipEffectCommand({
 			trackId,
 			elementId,
@@ -301,6 +340,7 @@ export class TimelineManager {
 		elementId: string;
 		effectId: string;
 	}): void {
+		if (!this.canEditElements([elementId])) return;
 		const command = new RemoveClipEffectCommand({
 			trackId,
 			elementId,
@@ -322,6 +362,7 @@ export class TimelineManager {
 		params: Partial<EffectParamValues>;
 		pushHistory?: boolean;
 	}): void {
+		if (!this.canEditElements([elementId])) return;
 		const command = new UpdateClipEffectParamsCommand({
 			trackId,
 			elementId,
@@ -344,6 +385,7 @@ export class TimelineManager {
 		elementId: string;
 		effectId: string;
 	}): void {
+		if (!this.canEditElements([elementId])) return;
 		const command = new ToggleClipEffectCommand({
 			trackId,
 			elementId,
@@ -363,6 +405,7 @@ export class TimelineManager {
 		fromIndex: number;
 		toIndex: number;
 	}): void {
+		if (!this.canEditElements([elementId])) return;
 		const command = new ReorderClipEffectsCommand({
 			trackId,
 			elementId,
@@ -533,6 +576,8 @@ export class TimelineManager {
 			updates: Partial<TimelineElement>;
 		}>;
 	}): void {
+		if (!this.canEditElements(updates.map((update) => update.elementId)))
+			return;
 		const tracks = this.getTracks();
 		this.previewTracker.begin({ state: tracks });
 
@@ -571,6 +616,8 @@ export class TimelineManager {
 	}: {
 		elements: { trackId: string; elementId: string }[];
 	}): { trackId: string; elementId: string }[] {
+		if (!this.canEditElements(elements.map((element) => element.elementId)))
+			return [];
 		const command = new DuplicateElementsCommand({ elements });
 		this.editor.command.execute({ command });
 		return command.getDuplicatedElements();
@@ -581,6 +628,8 @@ export class TimelineManager {
 	}: {
 		elements: { trackId: string; elementId: string }[];
 	}): void {
+		if (!this.canEditElements(elements.map((element) => element.elementId)))
+			return;
 		const command = new ToggleElementsVisibilityCommand(elements);
 		this.editor.command.execute({ command });
 	}
@@ -590,6 +639,8 @@ export class TimelineManager {
 	}: {
 		elements: { trackId: string; elementId: string }[];
 	}): void {
+		if (!this.canEditElements(elements.map((element) => element.elementId)))
+			return;
 		const command = new ToggleElementsMutedCommand(elements);
 		this.editor.command.execute({ command });
 	}
@@ -645,7 +696,10 @@ export class TimelineManager {
 	toggleTrackLock({ trackId }: { trackId: string }): void {
 		const track = this.getTracks().find((t) => t.id === trackId);
 		if (!track) return;
-		this.updateTrack({ trackId, updates: { locked: !(track as any).locked } as any });
+		this.updateTrack({
+			trackId,
+			updates: { locked: !(track as any).locked } as any,
+		});
 	}
 
 	isTrackLocked(trackId: string): boolean {
@@ -653,7 +707,13 @@ export class TimelineManager {
 		return !!(track as any)?.locked;
 	}
 
-	reorderTracks({ fromIndex, toIndex }: { fromIndex: number; toIndex: number }): void {
+	reorderTracks({
+		fromIndex,
+		toIndex,
+	}: {
+		fromIndex: number;
+		toIndex: number;
+	}): void {
 		const currentTracks = this.getTracks();
 		if (fromIndex === toIndex) return;
 		if (fromIndex < 0 || fromIndex >= currentTracks.length) return;

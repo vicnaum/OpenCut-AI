@@ -1,4 +1,5 @@
 import { useEditor } from "@/hooks/use-editor";
+import { useAutoCut } from "@/hooks/use-autocut";
 import {
 	TooltipProvider,
 	Tooltip,
@@ -6,7 +7,7 @@ import {
 	TooltipContent,
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { Scissors, SplitSquareHorizontal } from "lucide-react";
+import { Scissors, SplitSquareHorizontal, Loader2 } from "lucide-react";
 import {
 	SplitButton,
 	SplitButtonLeft,
@@ -78,6 +79,7 @@ export function TimelineToolbar({
 }
 
 function ToolbarLeftSection() {
+	const { busy: autoCutBusy } = useAutoCut();
 	const editor = useEditor();
 	const selection = editor.selection.getSelectedElements();
 	const selectedClip =
@@ -88,7 +90,9 @@ function ToolbarLeftSection() {
 					?.elements.find((element) => element.id === selection[0].elementId)
 			: undefined;
 	const currentTime = editor.playback.getCurrentTime();
-	const isCurrentlyBookmarked = editor.scenes.isBookmarked({ time: currentTime });
+	const isCurrentlyBookmarked = editor.scenes.isBookmarked({
+		time: currentTime,
+	});
 
 	const handleAction = ({
 		action,
@@ -110,14 +114,24 @@ function ToolbarLeftSection() {
 					aria-label="AutoCut"
 					data-testid="timeline-autocut"
 					title={
-						selectedClip?.type === "video"
-							? "AutoCut selected clip"
-							: "Select one video clip to use AutoCut"
+						autoCutBusy
+							? "AutoCut is processing this clip"
+							: selectedClip?.type === "video"
+								? "AutoCut selected clip"
+								: "Select one video clip to use AutoCut"
 					}
-					disabled={selectedClip?.type !== "video"}
+					disabled={autoCutBusy || selectedClip?.type !== "video"}
+					aria-busy={autoCutBusy}
 					onClick={(event) => handleAction({ action: "autocut-open", event })}
 				>
-					<Scissors className="size-4" />
+					{autoCutBusy ? (
+						<Loader2
+							data-testid="autocut-toolbar-spinner"
+							className="size-4 animate-spin"
+						/>
+					) : (
+						<Scissors className="size-4" />
+					)}
 					AutoCut
 				</Button>
 				<div className="bg-border mx-1 h-6 w-px" />
@@ -178,8 +192,8 @@ function ToolbarLeftSection() {
 				<Tooltip>
 					<ToolbarButton
 						icon={<HugeiconsIcon icon={Bookmark02Icon} />}
-				isActive={isCurrentlyBookmarked}
-					tooltip={isCurrentlyBookmarked ? "Remove bookmark" : "Add bookmark"}
+						isActive={isCurrentlyBookmarked}
+						tooltip={isCurrentlyBookmarked ? "Remove bookmark" : "Add bookmark"}
 						onClick={({ event }) =>
 							handleAction({ action: "toggle-bookmark", event })
 						}

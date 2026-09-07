@@ -16,6 +16,7 @@ import { useBackgroundTasksStore } from "@/stores/background-tasks-store";
 import { autoCutSettingsSchema, type AutoCutJob } from "@/types/autocut";
 import type { EditorCore } from "@/core";
 import { invokeAction, type TActionArgsMap } from "@/lib/actions";
+import { autoCutTarget } from "@/lib/autocut-status";
 
 const active = (job: AutoCutJob | null | undefined) =>
 	job?.status === "running" || job?.status === "queued";
@@ -41,6 +42,7 @@ function commitEdit(editor: EditorCore, session: AutoCutSession) {
 		command: new ApplyAutoCutCommand(editor, before, after),
 	});
 	editor.playback.seek({ time: session.snapshot.element.startTime });
+	return after.selection;
 }
 
 export function useAutoCutController() {
@@ -63,8 +65,125 @@ export function useAutoCutController() {
 
 	useEffect(() => () => transfer.current?.abort(), []);
 
+	useEffect(
+		() =>
+			editor.timeline.addElementEditLock((elementId) => {
+				const state = useAutoCutStore.getState();
+				const starting =
+					state.starting?.snapshot.projectId === projectId
+						? state.starting
+						: null;
+				const target = autoCutTarget(state.sessions[projectId], starting);
+				return (
+					!!target &&
+					target.element.id === elementId &&
+					editor.project.getActiveOrNull()?.metadata.id === projectId &&
+					editor.scenes.getActiveSceneOrNull()?.id === target.sceneId
+				);
+			}),
+		[editor, projectId],
+	);
+
+	useEffect(() => {
+		const check = () => {
+			if (editor.project.getActiveOrNull()?.metadata.id !== projectId) return;
+			const state = useAutoCutStore.getState();
+			const current = state.sessions[projectId];
+			const starting =
+				state.starting?.snapshot.projectId === projectId
+					? state.starting
+					: null;
+			const target = autoCutTarget(current, starting);
+			if (!target) return;
+			const scene = editor.scenes
+				.getScenes()
+				.find((item) => item.id === target.sceneId);
+			const track = scene?.tracks.find((item) => item.id === target.trackId);
+			const element = track?.elements.find(
+				(item) => item.id === target.element.id,
+			);
+			const asset = editor.media
+				.getAssets()
+				.find((item) => item.id === target.element.mediaId);
+			if (
+				element &&
+				JSON.stringify(element) === JSON.stringify(target.element) &&
+				!(
+					"locked" in (track ?? {}) && (track as { locked?: boolean }).locked
+				) &&
+				asset?.name === target.mediaName &&
+				asset.file.size === target.mediaSize &&
+				editor.project.getActive().settings.fps === target.fps
+			)
+				return;
+			const error =
+				"AutoCut stopped because the clip, source, or project settings changed.";
+			const id = starting?.id ?? current?.request.request_id;
+			if (!id) return;
+			if (starting) {
+				state.setStarting(null);
+				transfer.current?.abort();
+				state.setFeedback(projectId, {
+					jobId: id,
+					kind: "failed",
+					elements: [{ trackId: target.trackId, elementId: target.element.id }],
+					label: error,
+					expiresAt: null,
+				});
+			} else if (current) {
+				state.updateSession(projectId, {
+					applyStatus: "failed",
+					error,
+					job: {
+						id,
+						kind: "analyze",
+						status: "failed",
+						stage: "Source changed",
+						progress: current.job?.progress ?? 0,
+						error,
+						cutlist: null,
+						sheets: [],
+						output_url: null,
+					},
+				});
+				void aiClient.autocut.cancel(id).catch(() => {});
+			}
+			useBackgroundTasksStore
+				.getState()
+				.updateTask(id, { status: "error", error, completedAt: Date.now() });
+			toast.error(error, { id: `autocut-stale-${id}` });
+		};
+		const subscriptions = [
+			editor.timeline.subscribe(check),
+			editor.scenes.subscribe(check),
+			editor.project.subscribe(check),
+			editor.media.subscribe(check),
+			useAutoCutStore.subscribe(check),
+		];
+		check();
+		return () => {
+			for (const unsubscribe of subscriptions) unsubscribe();
+		};
+	}, [editor, projectId]);
+
+	const feedback = store.feedback[projectId];
+	useEffect(() => {
+		if (!feedback?.expiresAt) return;
+		const timer = setTimeout(
+			() => {
+				if (useAutoCutStore.getState().feedback[projectId] === feedback)
+					useAutoCutStore.getState().setFeedback(projectId, undefined);
+			},
+			Math.max(0, feedback.expiresAt - Date.now()),
+		);
+		return () => clearTimeout(timer);
+	}, [feedback, projectId]);
+
 	const analysisRequest = session?.request;
-	const shouldPollAnalysis = !!session && (!session.job || active(session.job));
+	const shouldPollAnalysis =
+		!!session &&
+		session.applyStatus !== "failed" &&
+		(!session.job || active(session.job));
 	useEffect(() => {
 		if (!analysisRequest || !shouldPollAnalysis) return;
 		const request = analysisRequest;
@@ -87,7 +206,8 @@ export function useAutoCutController() {
 				const current = useAutoCutStore.getState().sessions[projectId];
 				if (
 					!controller.signal.aborted &&
-					current?.request.request_id === request.request_id
+					current?.request.request_id === request.request_id &&
+					current.applyStatus !== "failed"
 				) {
 					useAutoCutStore.getState().updateSession(projectId, {
 						job,
@@ -202,12 +322,26 @@ export function useAutoCutController() {
 			state.updateSession(projectId, { applyStatus: "applying" });
 			const segments = job.cutlist?.segments;
 			if (!segments) throw new Error("The analysis returned no cut list.");
-			if (segments.length) commitEdit(editor, current);
+			const appliedElements = segments.length
+				? commitEdit(editor, current)
+				: [
+						{
+							trackId: current.snapshot.trackId,
+							elementId: current.snapshot.element.id,
+						},
+					];
 			state.updateSession(projectId, { applyStatus: "applied", error: null });
 			const seconds = segments.reduce(
 				(total, segment) => total + segment.end_s - segment.start_s,
 				0,
 			);
+			state.setFeedback(projectId, {
+				jobId: id,
+				kind: "success",
+				elements: appliedElements,
+				label: `AutoCut done: ${segments.length} cuts, ${seconds.toFixed(1)} s`,
+				expiresAt: Date.now() + 2000,
+			});
 			tasks.updateTask(id, {
 				status: "completed",
 				completedAt: Date.now(),
@@ -248,6 +382,8 @@ export function useAutoCutController() {
 				.getAssets()
 				.find((item) => item.id === snapshot.element.mediaId);
 			if (!asset?.file) throw new Error("Source video is unavailable.");
+			store.setFeedback(projectId, undefined);
+			store.setStarting({ id: requestId, snapshot });
 			if (options?.automatic) {
 				useBackgroundTasksStore.getState().addTask({
 					id: requestId,
@@ -306,6 +442,20 @@ export function useAutoCutController() {
 			});
 		} catch (error) {
 			if (!controller.signal.aborted) {
+				const starting = useAutoCutStore.getState().starting;
+				if (starting?.id === requestId)
+					store.setFeedback(projectId, {
+						jobId: requestId,
+						kind: "failed",
+						elements: [
+							{
+								trackId: starting.snapshot.trackId,
+								elementId: starting.snapshot.element.id,
+							},
+						],
+						label: message(error),
+						expiresAt: null,
+					});
 				if (
 					options?.automatic &&
 					!useBackgroundTasksStore
@@ -321,13 +471,21 @@ export function useAutoCutController() {
 					});
 			}
 		} finally {
-			if (controller.signal.aborted && options?.automatic)
+			if (
+				controller.signal.aborted &&
+				options?.automatic &&
+				useBackgroundTasksStore
+					.getState()
+					.tasks.find((task) => task.id === requestId)?.status === "running"
+			)
 				useBackgroundTasksStore.getState().updateTask(requestId, {
 					status: "cancelled",
 					progress: "Cancelled",
 					completedAt: Date.now(),
 				});
 			transfer.current = null;
+			if (useAutoCutStore.getState().starting?.id === requestId)
+				store.setStarting(null);
 			setTransferStage(null);
 		}
 	}

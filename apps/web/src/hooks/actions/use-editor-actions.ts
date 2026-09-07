@@ -173,7 +173,13 @@ export function useEditorActions() {
 							time: currentTime,
 						});
 
-			if (elementsToSplit.length === 0) return;
+			if (
+				elementsToSplit.length === 0 ||
+				!editor.timeline.canEditElements(
+					elementsToSplit.map((element) => element.elementId),
+				)
+			)
+				return;
 
 			editor.timeline.splitElements({
 				elements: elementsToSplit,
@@ -195,7 +201,13 @@ export function useEditorActions() {
 							time: currentTime,
 						});
 
-			if (elementsToSplit.length === 0) return;
+			if (
+				elementsToSplit.length === 0 ||
+				!editor.timeline.canEditElements(
+					elementsToSplit.map((element) => element.elementId),
+				)
+			)
+				return;
 
 			const rightSideElements = editor.timeline.splitElements({
 				elements: elementsToSplit,
@@ -228,7 +240,13 @@ export function useEditorActions() {
 							time: currentTime,
 						});
 
-			if (elementsToSplit.length === 0) return;
+			if (
+				elementsToSplit.length === 0 ||
+				!editor.timeline.canEditElements(
+					elementsToSplit.map((element) => element.elementId),
+				)
+			)
+				return;
 
 			editor.timeline.splitElements({
 				elements: elementsToSplit,
@@ -242,6 +260,14 @@ export function useEditorActions() {
 	useActionHandler(
 		"delete-selected",
 		() => {
+			if (
+				!editor.timeline.canEditElements(
+					[...selectedElements, ...selectedKeyframes].map(
+						(element) => element.elementId,
+					),
+				)
+			)
+				return;
 			if (selectedKeyframes.length > 0) {
 				editor.timeline.removeKeyframes({ keyframes: selectedKeyframes });
 				clearKeyframeSelection();
@@ -251,7 +277,8 @@ export function useEditorActions() {
 				return;
 			}
 
-			const supportsTransaction = editor.command && typeof editor.command.beginTransaction === "function";
+			const supportsTransaction =
+				editor.command && typeof editor.command.beginTransaction === "function";
 			const transcriptBefore = captureTranscriptSnapshot();
 			if (supportsTransaction) editor.command.beginTransaction();
 
@@ -273,9 +300,15 @@ export function useEditorActions() {
 			}
 
 			const transcriptAfter = captureTranscriptSnapshot();
-			if (supportsTransaction && hasTranscriptChanged(transcriptBefore, transcriptAfter)) {
+			if (
+				supportsTransaction &&
+				hasTranscriptChanged(transcriptBefore, transcriptAfter)
+			) {
 				editor.command.push({
-					command: new TranscriptSnapshotCommand(transcriptBefore, transcriptAfter),
+					command: new TranscriptSnapshotCommand(
+						transcriptBefore,
+						transcriptAfter,
+					),
 				});
 			}
 
@@ -683,7 +716,11 @@ export function useEditorActions() {
 		"version-diff-working",
 		() => {
 			// Open drawer to the diff tab
-			window.dispatchEvent(new CustomEvent("opencut:toggle-vc-drawer", { detail: { tab: "diff" } }));
+			window.dispatchEvent(
+				new CustomEvent("opencut:toggle-vc-drawer", {
+					detail: { tab: "diff" },
+				}),
+			);
 		},
 		undefined,
 	);

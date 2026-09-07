@@ -299,3 +299,15 @@
 		@apply bg-background text-foreground;
 	}
 }
+
+@keyframes autocut-stripes {
+ to { background-position: 28px 0; }
+}
+.autocut-processing-stripes {
+ background-image: repeating-linear-gradient(135deg, transparent 0 10px, rgb(251 191 36 / 0.25) 10px 20px);
+ background-size: 28px 28px;
+ animation: autocut-stripes 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+ .autocut-processing-stripes { animation: none; }
+}

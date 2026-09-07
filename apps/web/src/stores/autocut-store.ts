@@ -21,7 +21,24 @@ export interface AutoCutSession {
 	applyStatus?: "pending" | "applying" | "applied" | "failed";
 }
 
+export interface AutoCutStarting {
+	id: string;
+	snapshot: AutoCutSnapshot;
+}
+
+export interface AutoCutFeedback {
+	jobId: string;
+	kind: "success" | "failed";
+	elements: { trackId: string; elementId: string }[];
+	label: string;
+	expiresAt: number | null;
+}
+
 interface AutoCutStore {
+	starting: AutoCutStarting | null;
+	setStarting: (value: AutoCutStarting | null) => void;
+	feedback: Record<string, AutoCutFeedback | undefined>;
+	setFeedback: (projectId: string, value: AutoCutFeedback | undefined) => void;
 	popup: AutoCutSnapshot | null;
 	openPopup: (snapshot: AutoCutSnapshot) => void;
 	closePopup: () => void;
@@ -43,6 +60,11 @@ interface AutoCutStore {
 export const useAutoCutStore = create<AutoCutStore>()(
 	persist(
 		(set) => ({
+			starting: null,
+			setStarting: (starting) => set({ starting }),
+			feedback: {},
+			setFeedback: (id, value) =>
+				set((state) => ({ feedback: { ...state.feedback, [id]: value } })),
 			popup: null,
 			openPopup: (snapshot) => set({ popup: snapshot }),
 			closePopup: () => set({ popup: null }),
