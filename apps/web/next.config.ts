@@ -6,7 +6,6 @@ import { withContentCollections } from "@content-collections/next";
 const nextConfig: NextConfig = {
 	turbopack: {
 		root: path.resolve(__dirname, "../.."),
-		experimentalFileSystemCacheForDev: false,
 		rules: {
 			"*.glsl": {
 				loaders: [require.resolve("raw-loader")],
@@ -14,6 +13,7 @@ const nextConfig: NextConfig = {
 			},
 		},
 	},
+	experimental: { turbopackFileSystemCacheForDev: false },
 	compiler: {
 		removeConsole: process.env.NODE_ENV === "production",
 	},

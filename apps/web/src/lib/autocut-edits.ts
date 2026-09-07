@@ -262,7 +262,10 @@ export function planAutoCutEdit({
 /** One history entry with a fully validated before/after plan and restored selection. */
 export class ApplyAutoCutCommand extends Command {
 	constructor(
-		private readonly editor: Pick<EditorCore, "timeline" | "selection">,
+		private readonly editor: {
+			timeline: Pick<EditorCore["timeline"], "updateTracks">;
+			selection: Pick<EditorCore["selection"], "setSelectedElements">;
+		},
 		private readonly before: {
 			tracks: TimelineTrack[];
 			selection: ElementRef[];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Scissors, Loader2, Download, ArrowUpRight } from "lucide-react";
 import { PanelView } from "./base-view";
 import { Button } from "@/components/ui/button";
@@ -35,9 +36,11 @@ function time(seconds: number) {
 
 export function AutoCutView() {
 	const cut = useAutoCut();
-	const [sheet, setSheet] = useState<{ label: string; url: string } | null>(
-		null,
-	);
+	const [sheet, setSheet] = useState<{
+		label: string;
+		url: string;
+		height: number;
+	} | null>(null);
 	const session = cut.session;
 	const result = session?.job?.cutlist;
 	const kept =
@@ -52,7 +55,7 @@ export function AutoCutView() {
 	const canApply = !!result && !!kept.length && !cut.busy;
 	const analyzed = session?.snapshot;
 	const selected = cut.selection;
-	const shownSource = result || cut.busy ? analyzed : selected;
+	const shownSource = (result || cut.busy) && analyzed ? analyzed : selected;
 	const stage = cut.transferStage || session?.job?.stage || "Starting analysis";
 	const renderUrl = session?.renderJob?.output_url;
 
@@ -240,8 +243,12 @@ export function AutoCutView() {
 										data-testid={`autocut-pick-${segment.id}`}
 									>
 										<div className="p-2.5 space-y-1.5">
-											<label className="flex items-start gap-2 cursor-pointer">
+											<label
+												htmlFor={`autocut-keep-${segment.id}`}
+												className="flex items-start gap-2 cursor-pointer"
+											>
 												<Checkbox
+													id={`autocut-keep-${segment.id}`}
 													className="mt-0.5"
 													checked={session.keptIds.includes(segment.id)}
 													disabled={cut.busy || cut.rendering}
@@ -264,11 +271,23 @@ export function AutoCutView() {
 											<button
 												type="button"
 												className="w-full block border-t bg-black/5 relative"
-												onClick={() => setSheet({ label: segment.label, url })}
+												onClick={() =>
+													setSheet({
+														label: segment.label,
+														url,
+														height:
+															Math.ceil(segment.end_s - segment.start_s) * 320,
+													})
+												}
 												aria-label={`Review frames for ${segment.label}`}
 											>
-												<img
+												<Image
 													src={url}
+													unoptimized
+													width={880}
+													height={
+														Math.ceil(segment.end_s - segment.start_s) * 320
+													}
 													alt={`Four frames per second for ${segment.label}`}
 													loading="lazy"
 													className="w-full max-h-52 object-contain"
@@ -340,8 +359,11 @@ export function AutoCutView() {
 						</DialogDescription>
 					</DialogHeader>
 					{sheet && (
-						<img
+						<Image
 							src={sheet.url}
+							unoptimized
+							width={880}
+							height={sheet.height}
 							alt={`Review sheet: ${sheet.label}`}
 							className="w-full h-auto"
 						/>

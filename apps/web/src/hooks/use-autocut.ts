@@ -42,9 +42,11 @@ export function useAutoCut() {
 
 	useEffect(() => () => transfer.current?.abort(), []);
 
+	const analysisRequest = session?.request;
+	const shouldPollAnalysis = !!session && (!session.job || active(session.job));
 	useEffect(() => {
-		if (!session || (session.job && !active(session.job))) return;
-		const request = session.request;
+		if (!analysisRequest || !shouldPollAnalysis) return;
+		const request = analysisRequest;
 		const controller = new AbortController();
 		let timer: ReturnType<typeof setTimeout>;
 		async function poll() {
@@ -75,7 +77,11 @@ export function useAutoCut() {
 					});
 				}
 			} catch (error) {
-				if (!controller.signal.aborted) {
+				if (
+					!controller.signal.aborted &&
+					useAutoCutStore.getState().sessions[projectId]?.request.request_id ===
+						request.request_id
+				) {
 					const fatal =
 						error instanceof AutoCutHttpError &&
 						error.status >= 400 &&
@@ -108,11 +114,13 @@ export function useAutoCut() {
 			controller.abort();
 			clearTimeout(timer);
 		};
-	}, [projectId, session?.request.request_id, session?.job?.status]);
+	}, [projectId, analysisRequest, shouldPollAnalysis]);
 
+	const renderId = session?.renderJob?.id;
+	const shouldPollRender = active(session?.renderJob);
 	useEffect(() => {
-		if (!session?.renderJob || !active(session.renderJob)) return;
-		const id = session.renderJob.id;
+		if (!renderId || !shouldPollRender) return;
+		const id = renderId;
 		const controller = new AbortController();
 		let timer: ReturnType<typeof setTimeout>;
 		async function poll() {
@@ -127,7 +135,10 @@ export function useAutoCut() {
 						.updateSession(projectId, { renderJob: job, error: null });
 				}
 			} catch (error) {
-				if (!controller.signal.aborted)
+				if (
+					!controller.signal.aborted &&
+					useAutoCutStore.getState().sessions[projectId]?.renderJob?.id === id
+				)
 					useAutoCutStore
 						.getState()
 						.updateSession(projectId, { error: message(error) });
@@ -139,10 +150,16 @@ export function useAutoCut() {
 			controller.abort();
 			clearTimeout(timer);
 		};
-	}, [projectId, session?.renderJob?.id, session?.renderJob?.status]);
+	}, [projectId, renderId, shouldPollRender]);
 
 	async function run() {
-		if (busy || transfer.current) return;
+		if (
+			busy ||
+			transfer.current ||
+			renderStarting ||
+			active(session?.renderJob)
+		)
+			return;
 		const controller = new AbortController();
 		transfer.current = controller;
 		setLocalError(null);
