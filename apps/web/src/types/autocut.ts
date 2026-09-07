@@ -25,11 +25,11 @@ export const autoCutSettingsSchema = z.object({
 export type AutoCutSettings = z.infer<typeof autoCutSettingsSchema>;
 export const DEFAULT_AUTOCUT_SETTINGS: AutoCutSettings = {
 	processing: "static",
-	coarse_fps: 2,
-	fine_fps: 10,
+	coarse_fps: 1,
+	fine_fps: 5,
 	media_resolution: "high",
-	thinking_level: "low",
-	proxy_width: "720",
+	thinking_level: "high",
+	proxy_width: "source",
 	proxy_fps: "auto",
 	tone_map: "auto",
 	keep_audio: true,
