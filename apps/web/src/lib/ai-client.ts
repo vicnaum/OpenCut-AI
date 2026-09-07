@@ -1,3 +1,4 @@
+import { autoCutClient } from "@/lib/autocut-client";
 import type {
 	AIBackendStatus,
 	AIErrorType,
@@ -133,6 +134,7 @@ function getStoredApiKey(key: string): string {
 }
 
 class AIClient {
+	readonly autocut = autoCutClient;
 	private baseUrl: string;
 
 	constructor() {

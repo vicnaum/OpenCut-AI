@@ -14,12 +14,14 @@ import { VisualsCombinedView } from "./views/visuals-combined";
 import { BrandKitView } from "./views/brand-kit";
 import { VideoGenerationPanel } from "./views/video-generation";
 import { VisualSearchView } from "./views/visual-search";
+import { AutoCutView } from "./views/autocut";
 
 export function AssetsPanel() {
 	const { activeTab } = useAssetsPanelStore();
 
 	const viewMap: Record<Tab, React.ReactNode> = {
 		media: <MediaView />,
+		autocut: <AutoCutView />,
 		ai: <AIStudioView />,
 		videogen: <VideoGenerationPanel />,
 		text: <TextView />,

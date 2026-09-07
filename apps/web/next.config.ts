@@ -1,9 +1,12 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 import { withBotId } from "botid/next/config";
 import { withContentCollections } from "@content-collections/next";
 
 const nextConfig: NextConfig = {
 	turbopack: {
+		root: path.resolve(__dirname, "../.."),
+		experimentalFileSystemCacheForDev: false,
 		rules: {
 			"*.glsl": {
 				loaders: [require.resolve("raw-loader")],

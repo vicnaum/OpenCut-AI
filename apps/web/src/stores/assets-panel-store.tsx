@@ -15,9 +15,11 @@ import {
 	Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { Scissors } from "lucide-react";
 
 export const TAB_KEYS = [
 	"media",
+	"autocut",
 	"ai",
 	"videogen",
 	"text",
@@ -39,6 +41,7 @@ const createHugeiconsIcon =
 	);
 
 export const tabs = {
+	autocut: { icon: Scissors, label: "AutoCut" },
 	media: {
 		icon: createHugeiconsIcon({ icon: Folder03Icon }),
 		label: "Media",
