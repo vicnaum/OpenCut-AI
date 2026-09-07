@@ -21,10 +21,6 @@ export interface TActionDefinition {
 export const ACTIONS = {
 	"autocut-open": { description: "AutoCut selected video clip", category: "ai" },
 	"autocut-run": { description: "Find AutoCut moments", category: "ai" },
-	"autocut-cancel": { description: "Cancel AutoCut analysis", category: "ai" },
-	"autocut-replace": { description: "Replace analyzed clip with AutoCut picks", category: "editing" },
-	"autocut-insert": { description: "Insert AutoCut picks as a new track", category: "editing" },
-	"autocut-render": { description: "Render AutoCut picks in SDR", category: "ai" },
 	"toggle-play": {
 		description: "Play/Pause",
 		category: "playback",

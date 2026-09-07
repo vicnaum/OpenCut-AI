@@ -38,18 +38,18 @@ export default function Editor() {
 		<MobileGate>
 			<EditorProvider projectId={projectId}>
 				<AutoCutProvider>
-				<div className="bg-background flex h-screen w-screen flex-col overflow-hidden">
-					<EditorHeader />
-					<div className="min-h-0 min-w-0 flex-1">
-						<EditorLayout />
+					<div className="bg-background flex h-screen w-screen flex-col overflow-hidden">
+						<EditorHeader />
+						<div className="min-h-0 min-w-0 flex-1">
+							<EditorLayout />
+						</div>
+						<AIPanelWrapper />
+						<Onboarding />
+						<MigrationDialog />
+						<BackgroundTasksWidget />
+						<CommandPalette />
+						<AutoCutDialog />
 					</div>
-					<AIPanelWrapper />
-					<Onboarding />
-					<MigrationDialog />
-					<BackgroundTasksWidget />
-					<CommandPalette />
-					<AutoCutDialog />
-				</div>
 				</AutoCutProvider>
 			</EditorProvider>
 		</MobileGate>

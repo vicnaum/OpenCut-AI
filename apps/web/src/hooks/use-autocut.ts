@@ -9,26 +9,20 @@ import { AutoCutHttpError } from "@/lib/autocut-client";
 import {
 	ApplyAutoCutCommand,
 	planAutoCutEdit,
-	snapshotAutoCutSelection,
 	validateAutoCutContext,
-	type AutoCutPlacement,
 } from "@/lib/autocut-edits";
 import { useAutoCutStore, type AutoCutSession } from "@/stores/autocut-store";
 import { useBackgroundTasksStore } from "@/stores/background-tasks-store";
 import { autoCutSettingsSchema, type AutoCutJob } from "@/types/autocut";
 import type { EditorCore } from "@/core";
-import type { TActionArgsMap } from "@/lib/actions";
+import { invokeAction, type TActionArgsMap } from "@/lib/actions";
 
 const active = (job: AutoCutJob | null | undefined) =>
 	job?.status === "running" || job?.status === "queued";
 const message = (error: unknown) =>
 	error instanceof Error ? error.message : "AutoCut failed. Try again.";
 
-function commitEdit(
-	editor: EditorCore,
-	session: AutoCutSession,
-	placement: AutoCutPlacement,
-) {
+function commitEdit(editor: EditorCore, session: AutoCutSession) {
 	if (!session.job?.cutlist)
 		throw new Error("Wait for the analysis to complete.");
 	validateAutoCutContext(editor, session.snapshot);
@@ -40,10 +34,8 @@ function commitEdit(
 		...before,
 		snapshot: session.snapshot,
 		cutlist: session.job.cutlist,
-		keptIds: session.automatic
-			? session.job.cutlist.segments.map((segment) => segment.id)
-			: session.keptIds,
-		placement,
+		keptIds: session.job.cutlist.segments.map((segment) => segment.id),
+		placement: "replace",
 	});
 	editor.command.execute({
 		command: new ApplyAutoCutCommand(editor, before, after),
@@ -58,8 +50,6 @@ export function useAutoCutController() {
 	const store = useAutoCutStore();
 	const session = store.sessions[projectId];
 	const [transferStage, setTransferStage] = useState<string | null>(null);
-	const [localError, setLocalError] = useState<string | null>(null);
-	const [renderStarting, setRenderStarting] = useState(false);
 	const transfer = useRef<AbortController | null>(null);
 	const busy =
 		!!transferStage ||
@@ -70,13 +60,6 @@ export function useAutoCutController() {
 					session.job.status === "completed" &&
 					(session.applyStatus === "pending" ||
 						session.applyStatus === "applying"))));
-	let selection = null;
-	let selectionError: string | null = null;
-	try {
-		selection = snapshotAutoCutSelection(editor);
-	} catch (error) {
-		selectionError = message(error);
-	}
 
 	useEffect(() => () => transfer.current?.abort(), []);
 
@@ -219,7 +202,7 @@ export function useAutoCutController() {
 			state.updateSession(projectId, { applyStatus: "applying" });
 			const segments = job.cutlist?.segments;
 			if (!segments) throw new Error("The analysis returned no cut list.");
-			if (segments.length) commitEdit(editor, current, "replace");
+			if (segments.length) commitEdit(editor, current);
 			state.updateSession(projectId, { applyStatus: "applied", error: null });
 			const seconds = segments.reduce(
 				(total, segment) => total + segment.end_s - segment.start_s,
@@ -245,58 +228,17 @@ export function useAutoCutController() {
 		}
 	}, [editor, projectId, sceneId, session]);
 
-	const renderId = session?.renderJob?.id;
-	const shouldPollRender = active(session?.renderJob);
-	useEffect(() => {
-		if (!renderId || !shouldPollRender) return;
-		const id = renderId;
-		const controller = new AbortController();
-		let timer: ReturnType<typeof setTimeout>;
-		async function poll() {
-			try {
-				const job = await aiClient.autocut.job(id, controller.signal);
-				if (
-					!controller.signal.aborted &&
-					useAutoCutStore.getState().sessions[projectId]?.renderJob?.id === id
-				) {
-					useAutoCutStore
-						.getState()
-						.updateSession(projectId, { renderJob: job, error: null });
-				}
-			} catch (error) {
-				if (
-					!controller.signal.aborted &&
-					useAutoCutStore.getState().sessions[projectId]?.renderJob?.id === id
-				)
-					useAutoCutStore
-						.getState()
-						.updateSession(projectId, { error: message(error) });
-			}
-			if (!controller.signal.aborted) timer = setTimeout(poll, 1200);
-		}
-		void poll();
-		return () => {
-			controller.abort();
-			clearTimeout(timer);
-		};
-	}, [projectId, renderId, shouldPollRender]);
-
 	async function run(options?: TActionArgsMap["autocut-run"]) {
-		if (
-			busy ||
-			transfer.current ||
-			renderStarting ||
-			active(session?.renderJob)
-		)
+		if (!options) {
+			invokeAction("autocut-open");
 			return;
+		}
+		if (busy || transfer.current) return;
 		const controller = new AbortController();
 		const requestId = crypto.randomUUID().replaceAll("-", "");
 		transfer.current = controller;
-		setLocalError(null);
 		try {
-			const snapshot = options?.automatic
-				? useAutoCutStore.getState().popup
-				: snapshotAutoCutSelection(editor);
+			const snapshot = useAutoCutStore.getState().popup;
 			if (!snapshot) throw new Error("Open AutoCut for a video clip first.");
 			validateAutoCutContext(editor, snapshot);
 			const settings = autoCutSettingsSchema.parse(store.settings);
@@ -364,7 +306,6 @@ export function useAutoCutController() {
 			});
 		} catch (error) {
 			if (!controller.signal.aborted) {
-				setLocalError(message(error));
 				if (
 					options?.automatic &&
 					!useBackgroundTasksStore
@@ -391,58 +332,6 @@ export function useAutoCutController() {
 		}
 	}
 
-	async function cancel() {
-		if (transfer.current) {
-			transfer.current.abort();
-			return;
-		}
-		if (!session) return;
-		try {
-			const job = await aiClient.autocut.cancel(session.request.request_id);
-			store.updateSession(projectId, { job, error: null });
-		} catch (error) {
-			setLocalError(message(error));
-		}
-	}
-
-	function apply(placement: AutoCutPlacement) {
-		try {
-			if (!session?.job?.cutlist || busy)
-				throw new Error("Wait for the analysis to complete.");
-			commitEdit(editor, session, placement);
-			setLocalError(null);
-			toast.success(
-				placement === "replace"
-					? "Clip replaced. Undo restores the original."
-					: "AutoCut picks added as a new track.",
-			);
-		} catch (error) {
-			setLocalError(message(error));
-		}
-	}
-
-	async function render() {
-		if (
-			!session?.job?.cutlist ||
-			!session.keptIds.length ||
-			renderStarting ||
-			active(session.renderJob)
-		)
-			return;
-		setRenderStarting(true);
-		try {
-			const renderJob = await aiClient.autocut.render(
-				session.job.id,
-				session.keptIds,
-			);
-			store.updateSession(projectId, { renderJob, error: null });
-		} catch (error) {
-			setLocalError(message(error));
-		} finally {
-			setRenderStarting(false);
-		}
-	}
-
 	useActionHandler(
 		"autocut-run",
 		(options) => {
@@ -450,46 +339,7 @@ export function useAutoCutController() {
 		},
 		undefined,
 	);
-	useActionHandler(
-		"autocut-cancel",
-		() => {
-			void cancel();
-		},
-		undefined,
-	);
-	useActionHandler("autocut-replace", () => apply("replace"), undefined);
-	useActionHandler("autocut-insert", () => apply("track"), undefined);
-	useActionHandler(
-		"autocut-render",
-		() => {
-			void render();
-		},
-		undefined,
-	);
-
-	return {
-		...store,
-		session,
-		selection,
-		selectionError,
-		busy,
-		transferStage,
-		error:
-			localError ||
-			session?.error ||
-			session?.job?.error ||
-			session?.renderJob?.error,
-		rendering: renderStarting || active(session?.renderJob),
-		toggleKeep(id: number) {
-			if (!session) return;
-			store.updateSession(projectId, {
-				keptIds: session.keptIds.includes(id)
-					? session.keptIds.filter((item) => item !== id)
-					: [...session.keptIds, id],
-				renderJob: null,
-			});
-		},
-	};
+	return { busy };
 }
 
 export const AutoCutContext = createContext<ReturnType<
