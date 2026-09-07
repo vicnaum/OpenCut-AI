@@ -18,9 +18,7 @@ import {
 } from "@/stores/background-tasks-store";
 
 function formatElapsed(startedAt: number, completedAt?: number): string {
-	const elapsed = Math.floor(
-		((completedAt ?? Date.now()) - startedAt) / 1000,
-	);
+	const elapsed = Math.floor(((completedAt ?? Date.now()) - startedAt) / 1000);
 	if (elapsed < 60) return `${elapsed}s`;
 	return `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
 }
@@ -55,28 +53,43 @@ function TaskRow({ task }: { task: BackgroundTask }) {
 					className="size-3.5 text-red-500 shrink-0"
 				/>
 			)}
+			{task.status === "cancelled" && (
+				<HugeiconsIcon
+					icon={Cancel01Icon}
+					className="size-3.5 text-muted-foreground shrink-0"
+				/>
+			)}
 
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-1.5">
-					<span className="text-[11px] font-medium truncate">
-						{task.label}
-					</span>
+					<span className="text-[11px] font-medium truncate">{task.label}</span>
 					<span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
 						{elapsed}
 					</span>
 				</div>
-				{task.status === "running" && task.progress && (
-					<p className="text-[10px] text-muted-foreground truncate">
-						{task.progress}
-					</p>
-				)}
+				{(task.status === "running" ||
+					(task.type === "autocut" && task.status !== "error")) &&
+					task.progress && (
+						<p className="text-[10px] text-muted-foreground truncate">
+							{task.progress}
+						</p>
+					)}
 				{task.status === "error" && task.error && (
-					<p className="text-[10px] text-red-400 truncate">
-						{task.error}
-					</p>
+					<p className="text-[10px] text-red-400 truncate">{task.error}</p>
 				)}
 			</div>
 
+			{task.status === "running" && task.cancel && (
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-5 shrink-0"
+					aria-label={`Cancel ${task.label}`}
+					onClick={task.cancel}
+				>
+					<HugeiconsIcon icon={Cancel01Icon} className="size-3" />
+				</Button>
+			)}
 			{task.status !== "running" && (
 				<Button
 					variant="ghost"

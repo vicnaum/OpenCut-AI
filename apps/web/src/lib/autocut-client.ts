@@ -1,6 +1,8 @@
 import {
 	autoCutJobSchema,
 	autoCutMediaSchema,
+	autoCutConfigSchema,
+	autoCutEstimateSchema,
 	type AutoCutAnalyzeRequest,
 } from "@/types/autocut";
 
@@ -67,6 +69,34 @@ export class AutoCutClient {
 
 	async health(signal?: AbortSignal) {
 		await this.request("/autocut/health", { signal }, 5000);
+	}
+
+	async configuration(signal?: AbortSignal) {
+		return autoCutConfigSchema.parse(
+			await this.request("/autocut/config", { signal }, 5000),
+		);
+	}
+
+	async media(id: string, signal?: AbortSignal) {
+		return autoCutMediaSchema.parse(
+			await this.request(`/autocut/media/${encodeURIComponent(id)}`, {
+				signal,
+			}),
+		);
+	}
+
+	async estimate(
+		request: Omit<AutoCutAnalyzeRequest, "request_id">,
+		signal?: AbortSignal,
+	) {
+		return autoCutEstimateSchema.parse(
+			await this.request("/autocut/estimate", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(request),
+				signal,
+			}),
+		);
 	}
 
 	async upload(file: File, signal?: AbortSignal) {

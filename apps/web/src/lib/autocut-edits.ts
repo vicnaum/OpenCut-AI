@@ -88,6 +88,23 @@ export function validateAutoCutContext(
 	) {
 		throw new Error("The source media changed. Run AutoCut again.");
 	}
+	const track = editor.timeline
+		.getTracks()
+		.find((item) => item.id === snapshot.trackId);
+	const element = track?.elements.find(
+		(item) => item.id === snapshot.element.id,
+	);
+	if (
+		track?.type !== "video" ||
+		element?.type !== "video" ||
+		JSON.stringify(element) !== JSON.stringify(snapshot.element)
+	)
+		throw new Error(
+			"The selected clip changed or was removed. Open AutoCut again.",
+		);
+	if (track.locked)
+		throw new Error("Unlock this track before running AutoCut.");
+	checkAutoCutClip(element);
 }
 
 export function planAutoCutEdit({

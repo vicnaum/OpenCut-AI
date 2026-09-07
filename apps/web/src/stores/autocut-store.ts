@@ -5,7 +5,10 @@ import type {
 	AutoCutAnalyzeRequest,
 	AutoCutJob,
 	AutoCutMode,
+	AutoCutSettings,
+	AutoCutMedia,
 } from "@/types/autocut";
+import { DEFAULT_AUTOCUT_SETTINGS } from "@/types/autocut";
 
 export interface AutoCutSession {
 	snapshot: AutoCutSnapshot;
@@ -14,12 +17,18 @@ export interface AutoCutSession {
 	keptIds: number[];
 	error: string | null;
 	renderJob: AutoCutJob | null;
+	automatic?: boolean;
+	applyStatus?: "pending" | "applying" | "applied" | "failed";
 }
 
 interface AutoCutStore {
 	popup: AutoCutSnapshot | null;
 	openPopup: (snapshot: AutoCutSnapshot) => void;
 	closePopup: () => void;
+	settings: AutoCutSettings;
+	setSettings: (settings: Partial<AutoCutSettings>) => void;
+	media: Record<string, AutoCutMedia>;
+	setMedia: (key: string, media: AutoCutMedia) => void;
 	sessions: Record<string, AutoCutSession>;
 	prompt: string;
 	mode: AutoCutMode;
@@ -37,6 +46,12 @@ export const useAutoCutStore = create<AutoCutStore>()(
 			popup: null,
 			openPopup: (snapshot) => set({ popup: snapshot }),
 			closePopup: () => set({ popup: null }),
+			settings: DEFAULT_AUTOCUT_SETTINGS,
+			setSettings: (settings) =>
+				set((state) => ({ settings: { ...state.settings, ...settings } })),
+			media: {},
+			setMedia: (key, media) =>
+				set((state) => ({ media: { ...state.media, [key]: media } })),
 			sessions: {},
 			prompt: "",
 			mode: "unboxing",
@@ -59,11 +74,13 @@ export const useAutoCutStore = create<AutoCutStore>()(
 		}),
 		{
 			name: "autocut-sessions-v1",
-			partialize: ({ sessions, prompt, mode, target }) => ({
+			partialize: ({ sessions, prompt, mode, target, settings, media }) => ({
 				sessions,
 				prompt,
 				mode,
 				target,
+				settings,
+				media,
 			}),
 		},
 	),

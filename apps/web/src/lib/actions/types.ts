@@ -5,6 +5,9 @@ export type { TAction };
 
 export type TActionArgsMap = {
 	"autocut-open": { trackId: string; elementId: string } | undefined;
+	"autocut-run":
+		| { automatic: true; mediaId: string; expectedModel: string }
+		| undefined;
 	"seek-forward": { seconds: number } | undefined;
 	"seek-backward": { seconds: number } | undefined;
 	"jump-forward": { seconds: number } | undefined;

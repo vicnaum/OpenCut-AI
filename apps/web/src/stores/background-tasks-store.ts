@@ -1,11 +1,16 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 
-export type BackgroundTaskStatus = "running" | "completed" | "error";
+export type BackgroundTaskStatus =
+	| "running"
+	| "completed"
+	| "error"
+	| "cancelled";
 
 export interface BackgroundTask {
 	id: string;
 	type:
+		| "autocut"
 		| "transcription"
 		| "voiceover"
 		| "translation"
@@ -27,6 +32,7 @@ export interface BackgroundTask {
 	startedAt: number;
 	completedAt?: number;
 	error?: string;
+	cancel?: () => void;
 }
 
 interface BackgroundTasksState {
@@ -64,8 +70,7 @@ export const useBackgroundTasksStore = create<BackgroundTasksState>(
 			// Guard: don't re-notify if task is already in a terminal state
 			const existing = get().tasks.find((t) => t.id === id);
 			if (!existing) return;
-			const wasTerminal =
-				existing.status === "completed" || existing.status === "error";
+			const wasTerminal = existing.status !== "running";
 
 			set((state) => ({
 				tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),

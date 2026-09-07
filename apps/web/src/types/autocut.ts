@@ -11,6 +11,70 @@ export const AUTOCUT_MODES = [
 ] as const;
 export type AutoCutMode = (typeof AUTOCUT_MODES)[number];
 
+export const autoCutSettingsSchema = z.object({
+	processing: z.enum(["static", "agentic"]),
+	coarse_fps: z.number().positive().max(24),
+	fine_fps: z.number().positive().max(24),
+	media_resolution: z.enum(["low", "high"]),
+	thinking_level: z.enum(["low", "medium", "high"]),
+	proxy_width: z.enum(["480", "720", "1080", "source"]),
+	proxy_fps: z.enum(["auto", "15", "24", "25", "30", "50", "60"]),
+	tone_map: z.literal("auto"),
+	keep_audio: z.boolean(),
+});
+export type AutoCutSettings = z.infer<typeof autoCutSettingsSchema>;
+export const DEFAULT_AUTOCUT_SETTINGS: AutoCutSettings = {
+	processing: "static",
+	coarse_fps: 2,
+	fine_fps: 10,
+	media_resolution: "high",
+	thinking_level: "low",
+	proxy_width: "720",
+	proxy_fps: "auto",
+	tone_map: "auto",
+	keep_audio: true,
+};
+
+const autoCutPricingSchema = z.object({
+	input_usd_per_million: z.number().nullable(),
+	source: z.string(),
+	verified_on: z.string(),
+});
+export const autoCutConfigSchema = z.object({
+	model: z.string(),
+	settings: autoCutSettingsSchema,
+	pricing: autoCutPricingSchema,
+});
+export type AutoCutConfig = z.infer<typeof autoCutConfigSchema>;
+export const autoCutEstimateSchema = z.object({
+	model: z.string(),
+	duration_s: z.number(),
+	pricing: autoCutPricingSchema,
+	proxy: z.object({
+		cached: z.boolean(),
+		width: z.number(),
+		height: z.number(),
+		fps: z.number(),
+		tone_mapped: z.boolean(),
+		has_audio: z.boolean(),
+		full_size_bytes: z.number(),
+		selection_size_bytes: z.number(),
+		selection_size_exact: z.boolean(),
+	}),
+	tokens: z.object({
+		input_tokens: z.number(),
+		coarse_tokens: z.number(),
+		fine_tokens: z.number(),
+		input_cost_usd: z.number().nullable(),
+		fine_windows: z.number(),
+		fine_window_seconds: z.number(),
+		effective_fine_fps: z.number(),
+		agentic_static_baseline: z.boolean(),
+		excludes_output_and_thinking: z.boolean(),
+	}),
+});
+export type AutoCutEstimate = z.infer<typeof autoCutEstimateSchema>;
+
 export const autoCutSegmentSchema = z
 	.object({
 		id: z.number().int().positive(),
@@ -71,6 +135,8 @@ export interface AutoCutAnalyzeRequest {
 	project_fps: string;
 	range_start_s: number;
 	range_end_s: number;
+	settings?: AutoCutSettings;
+	expected_model?: string;
 }
 
 export const autoCutMediaSchema = z.object({
@@ -80,6 +146,7 @@ export const autoCutMediaSchema = z.object({
 	duration_s: z.number(),
 	width: z.number(),
 	height: z.number(),
+	fps: z.number().positive(),
 	has_audio: z.boolean(),
 	color_transfer: z.string(),
 });

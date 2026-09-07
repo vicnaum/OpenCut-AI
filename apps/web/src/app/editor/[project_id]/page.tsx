@@ -28,6 +28,7 @@ import type { TextElement } from "@/types/timeline";
 import { BackgroundTasksWidget } from "@/components/editor/background-tasks";
 import { CommandPalette } from "@/components/editor/command-palette";
 import { AutoCutDialog } from "@/components/editor/dialogs/autocut-dialog";
+import { AutoCutProvider } from "@/components/providers/autocut-provider";
 
 export default function Editor() {
 	const params = useParams();
@@ -36,6 +37,7 @@ export default function Editor() {
 	return (
 		<MobileGate>
 			<EditorProvider projectId={projectId}>
+				<AutoCutProvider>
 				<div className="bg-background flex h-screen w-screen flex-col overflow-hidden">
 					<EditorHeader />
 					<div className="min-h-0 min-w-0 flex-1">
@@ -48,6 +50,7 @@ export default function Editor() {
 					<CommandPalette />
 					<AutoCutDialog />
 				</div>
+				</AutoCutProvider>
 			</EditorProvider>
 		</MobileGate>
 	);
