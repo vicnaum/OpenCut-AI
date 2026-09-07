@@ -224,13 +224,36 @@ export function AutoCutDialog() {
 							/>
 							<Choice
 								id="autocut-thinking"
-								label="Thinking"
+								label="Discovery thinking"
 								value={settings.thinking_level}
 								options={choices(["low", "medium", "high"])}
 								onChange={(value) =>
 									setSettings({
 										thinking_level: value as AutoCutSettings["thinking_level"],
 									})
+								}
+							/>
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<Choice
+								id="autocut-fine-thinking"
+								label="Verification thinking"
+								value={settings.fine_thinking_level}
+								options={choices(["low", "medium", "high"])}
+								onChange={(value) =>
+									setSettings({
+										fine_thinking_level:
+											value as AutoCutSettings["fine_thinking_level"],
+									})
+								}
+							/>
+							<Choice
+								id="autocut-fine-workers"
+								label="Parallel checks"
+								value={String(settings.fine_workers)}
+								options={choices(["3", "6", "8"])}
+								onChange={(value) =>
+									setSettings({ fine_workers: Number(value) })
 								}
 							/>
 						</div>

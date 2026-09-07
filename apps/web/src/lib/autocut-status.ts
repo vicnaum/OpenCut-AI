@@ -14,6 +14,8 @@ export function autoCutStep(job: AutoCutJob | null | undefined) {
 		"file-processing": 2,
 		coarse: 3,
 		fine: 4,
+		"fine-frames": 4,
+		"fine-fallback": 4,
 		sheets: 5,
 	};
 	const legacyStep = /review|sheets|complete/i.test(stage)
@@ -82,4 +84,30 @@ export function autoCutEta(job: AutoCutJob | null | undefined, now: number) {
 			? `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 			: `${seconds}s`;
 	return `~${duration} left${job.eta_scope === "stage" ? " in this step" : ""}`;
+}
+
+export function autoCutProgressDetail(
+	job: AutoCutJob | null | undefined,
+	now: number,
+) {
+	const rate = job?.rate;
+	const encoding = job?.stage_key === "proxy" || job?.stage_key === "range";
+	const fps =
+		encoding &&
+		rate?.unit === "fps" &&
+		Number.isFinite(rate.value) &&
+		rate.value > 0
+			? `${rate.value.toFixed(1)} fps · `
+			: "";
+	return `${fps}${autoCutEta(job, now)}`;
+}
+
+export function autoCutEmptyReason(job: AutoCutJob, mode: string) {
+	const reason = job.cutlist?.trace?.empty_result_reason;
+	if (typeof reason === "string" && reason.trim()) return reason;
+	const rejected = job.cutlist?.trace?.rejected;
+	const count = Array.isArray(rejected) ? rejected.length : 0;
+	return count
+		? `0 cuts: ${count} candidates did not produce a usable ${mode} edit. Try Demo or General.`
+		: "0 cuts: no usable moments found. Try another range or General.";
 }

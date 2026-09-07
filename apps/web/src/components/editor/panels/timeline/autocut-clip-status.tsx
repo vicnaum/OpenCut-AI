@@ -4,8 +4,9 @@ import { useEffect, useState, useRef, type RefObject } from "react";
 import { useEditor } from "@/hooks/use-editor";
 import { useAutoCutStore } from "@/stores/autocut-store";
 import {
-	autoCutEta,
+	autoCutProgressDetail,
 	autoCutStep,
+	autoCutEmptyReason,
 	visibleClipInterval,
 	autoCutTarget,
 	AUTOCUT_LOCK_REASON,
@@ -33,7 +34,7 @@ export function useAutoCutClipStatus(elementId: string) {
 	}, [processing]);
 	if (processing) {
 		const job = starting ? null : session?.job;
-		const eta = autoCutEta(job, now);
+		const eta = autoCutProgressDetail(job, now);
 		return {
 			kind: "processing" as const,
 			label: autoCutStep(job),
@@ -46,6 +47,18 @@ export function useAutoCutClipStatus(elementId: string) {
 			label: feedback.label,
 			detail: "",
 			summary: feedback.elements[0]?.elementId === elementId,
+		};
+	if (
+		session?.applyStatus === "applied" &&
+		session.snapshot.sceneId === sceneId &&
+		session.snapshot.element.id === elementId &&
+		session.job?.status === "completed" &&
+		session.job.cutlist?.segments.length === 0
+	)
+		return {
+			kind: "empty" as const,
+			label: autoCutEmptyReason(session.job, session.request.mode),
+			detail: "",
 		};
 	if (
 		session?.snapshot.sceneId === sceneId &&
@@ -138,7 +151,9 @@ export function AutoCutClipStatus({
 						? "autocut-processing-stripes bg-amber-950/75"
 						: status.kind === "success"
 							? "bg-emerald-700/85"
-							: "bg-red-900/90",
+							: status.kind === "empty"
+								? "bg-amber-950/90"
+								: "bg-red-900/90",
 				)}
 			>
 				<div

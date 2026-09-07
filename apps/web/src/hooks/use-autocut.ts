@@ -16,7 +16,11 @@ import { useBackgroundTasksStore } from "@/stores/background-tasks-store";
 import { autoCutSettingsSchema, type AutoCutJob } from "@/types/autocut";
 import type { EditorCore } from "@/core";
 import { invokeAction, type TActionArgsMap } from "@/lib/actions";
-import { autoCutTarget, autoCutStep } from "@/lib/autocut-status";
+import {
+	autoCutTarget,
+	autoCutStep,
+	autoCutEmptyReason,
+} from "@/lib/autocut-status";
 
 const active = (job: AutoCutJob | null | undefined) =>
 	job?.status === "running" || job?.status === "queued";
@@ -337,17 +341,19 @@ export function useAutoCutController() {
 			);
 			state.setFeedback(projectId, {
 				jobId: id,
-				kind: "success",
+				kind: segments.length ? "success" : "empty",
 				elements: appliedElements,
-				label: `AutoCut done: ${segments.length} cuts, ${seconds.toFixed(1)} s`,
-				expiresAt: Date.now() + 2000,
+				label: segments.length
+					? `AutoCut done: ${segments.length} cuts, ${seconds.toFixed(1)} s`
+					: autoCutEmptyReason(job, current.request.mode),
+				expiresAt: segments.length ? Date.now() + 2000 : null,
 			});
 			tasks.updateTask(id, {
 				status: "completed",
 				completedAt: Date.now(),
 				progress: segments.length
 					? `${segments.length} clips · ${seconds.toFixed(2)} s. Undo restores the original.`
-					: "No matching moments. Original clip retained.",
+					: autoCutEmptyReason(job, current.request.mode),
 			});
 		} catch (error) {
 			state.updateSession(projectId, {

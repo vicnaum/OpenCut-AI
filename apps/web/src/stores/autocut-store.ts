@@ -28,7 +28,7 @@ export interface AutoCutStarting {
 
 export interface AutoCutFeedback {
 	jobId: string;
-	kind: "success" | "failed";
+	kind: "success" | "failed" | "empty";
 	elements: { trackId: string; elementId: string }[];
 	label: string;
 	expiresAt: number | null;
@@ -96,6 +96,14 @@ export const useAutoCutStore = create<AutoCutStore>()(
 		}),
 		{
 			name: "autocut-sessions-v1",
+			merge: (persisted, current) => {
+				const saved = persisted as Partial<AutoCutStore>;
+				return {
+					...current,
+					...saved,
+					settings: { ...DEFAULT_AUTOCUT_SETTINGS, ...saved?.settings },
+				};
+			},
 			partialize: ({ sessions, prompt, mode, target, settings, media }) => ({
 				sessions,
 				prompt,

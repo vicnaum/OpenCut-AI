@@ -3,6 +3,8 @@ import type { EditorCore } from "@/core";
 import { TimelineManager } from "@/core/managers/timeline-manager";
 import {
 	autoCutEta,
+	autoCutProgressDetail,
+	autoCutEmptyReason,
 	autoCutStep,
 	visibleClipInterval,
 	isAutoCutProcessing,
@@ -31,6 +33,28 @@ describe("AutoCut processing protection", () => {
 				stage_progress: 0.25,
 			}),
 		).toBe("Step 4 of 5: Verifying 25%");
+	});
+
+	test("empty results retain their explanation and encoder fps is shown only while encoding", () => {
+		const job = {
+			stage_key: "proxy",
+			rate: { value: 58.25, unit: "fps" },
+			eta_seconds: 20,
+			eta_scope: "stage",
+			updated_at: 100,
+			cutlist: {
+				trace: { empty_result_reason: "0 cuts: no completed actions" },
+			},
+		} as AutoCutJob;
+		expect(autoCutProgressDetail(job, 100_000)).toBe(
+			"58.3 fps · ~20s left in this step",
+		);
+		expect(autoCutProgressDetail({ ...job, stage_key: "fine" }, 100_000)).toBe(
+			"~20s left in this step",
+		);
+		expect(autoCutEmptyReason(job, "unboxing")).toBe(
+			"0 cuts: no completed actions",
+		);
 	});
 
 	test("visible label bounds follow either clipped side, zoom and offscreen clips", () => {

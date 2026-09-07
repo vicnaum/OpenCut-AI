@@ -17,6 +17,8 @@ export const autoCutSettingsSchema = z.object({
 	fine_fps: z.number().positive().max(24),
 	media_resolution: z.enum(["low", "high"]),
 	thinking_level: z.enum(["low", "medium", "high"]),
+	fine_thinking_level: z.enum(["low", "medium", "high"]).default("medium"),
+	fine_workers: z.number().int().min(1).max(8).default(6),
 	proxy_width: z.enum(["480", "720", "1080", "source"]),
 	proxy_fps: z.enum(["auto", "15", "24", "25", "30", "50", "60"]),
 	tone_map: z.literal("auto"),
@@ -29,6 +31,8 @@ export const DEFAULT_AUTOCUT_SETTINGS: AutoCutSettings = {
 	fine_fps: 5,
 	media_resolution: "high",
 	thinking_level: "high",
+	fine_thinking_level: "medium",
+	fine_workers: 6,
 	proxy_width: "source",
 	proxy_fps: "auto",
 	tone_map: "auto",
@@ -126,6 +130,10 @@ export const autoCutJobSchema = z.object({
 	stage_progress: z.number().min(0).max(1).nullable().optional(),
 	step_index: z.number().int().min(1).nullable().optional(),
 	step_count: z.number().int().min(1).nullable().optional(),
+	stage_elapsed_seconds: z.number().nonnegative().nullable().optional(),
+	stage_timings_s: z.record(z.string(), z.number().nonnegative()).optional(),
+	step_timings_s: z.record(z.string(), z.number().nonnegative()).optional(),
+	total_elapsed_seconds: z.number().nonnegative().nullable().optional(),
 	rate: z
 		.object({ value: z.number().nonnegative(), unit: z.string() })
 		.nullable()
