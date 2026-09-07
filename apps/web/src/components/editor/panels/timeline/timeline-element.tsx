@@ -326,6 +326,19 @@ export function TimelineElement({
 				</div>
 			</ContextMenuTrigger>
 			<ContextMenuContent className="w-64">
+				{element.type === "video" && (
+					<ContextMenuItem
+						icon={<HugeiconsIcon icon={MagicWand05Icon} />}
+						onClick={() =>
+							invokeAction("autocut-open", {
+								trackId: track.id,
+								elementId: element.id,
+							})
+						}
+					>
+						AutoCut…
+					</ContextMenuItem>
+				)}
 				<ActionMenuItem
 					action="split"
 					icon={<HugeiconsIcon icon={ScissorIcon} />}

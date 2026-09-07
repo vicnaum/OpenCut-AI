@@ -17,6 +17,9 @@ export interface AutoCutSession {
 }
 
 interface AutoCutStore {
+	popup: AutoCutSnapshot | null;
+	openPopup: (snapshot: AutoCutSnapshot) => void;
+	closePopup: () => void;
 	sessions: Record<string, AutoCutSession>;
 	prompt: string;
 	mode: AutoCutMode;
@@ -31,6 +34,9 @@ interface AutoCutStore {
 export const useAutoCutStore = create<AutoCutStore>()(
 	persist(
 		(set) => ({
+			popup: null,
+			openPopup: (snapshot) => set({ popup: snapshot }),
+			closePopup: () => set({ popup: null }),
 			sessions: {},
 			prompt: "",
 			mode: "unboxing",

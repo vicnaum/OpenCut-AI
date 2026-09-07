@@ -27,6 +27,7 @@ import { useEffect, useRef } from "react";
 import type { TextElement } from "@/types/timeline";
 import { BackgroundTasksWidget } from "@/components/editor/background-tasks";
 import { CommandPalette } from "@/components/editor/command-palette";
+import { AutoCutDialog } from "@/components/editor/dialogs/autocut-dialog";
 
 export default function Editor() {
 	const params = useParams();
@@ -45,6 +46,7 @@ export default function Editor() {
 					<MigrationDialog />
 					<BackgroundTasksWidget />
 					<CommandPalette />
+					<AutoCutDialog />
 				</div>
 			</EditorProvider>
 		</MobileGate>

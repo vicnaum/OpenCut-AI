@@ -19,6 +19,7 @@ export interface TActionDefinition {
 }
 
 export const ACTIONS = {
+	"autocut-open": { description: "AutoCut selected video clip", category: "ai" },
 	"autocut-run": { description: "Find AutoCut moments", category: "ai" },
 	"autocut-cancel": { description: "Cancel AutoCut analysis", category: "ai" },
 	"autocut-replace": { description: "Replace analyzed clip with AutoCut picks", category: "editing" },

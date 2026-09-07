@@ -4,6 +4,7 @@ import type { TAction } from "./definitions";
 export type { TAction };
 
 export type TActionArgsMap = {
+	"autocut-open": { trackId: string; elementId: string } | undefined;
 	"seek-forward": { seconds: number } | undefined;
 	"seek-backward": { seconds: number } | undefined;
 	"jump-forward": { seconds: number } | undefined;

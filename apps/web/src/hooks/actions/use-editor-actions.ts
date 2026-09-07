@@ -18,6 +18,8 @@ import {
 } from "@/lib/commands/transcript";
 import { toast } from "sonner";
 import { useVersionStore } from "@/stores/version-store";
+import { snapshotAutoCutSelection } from "@/lib/autocut-edits";
+import { useAutoCutStore } from "@/stores/autocut-store";
 
 export function useEditorActions() {
 	const editor = useEditor();
@@ -32,6 +34,22 @@ export function useEditorActions() {
 	const toggleCommandPanel = useAIStore((s) => s.toggleCommandPanel);
 	const requestFindSimilar = useSearchStore((s) => s.requestFindSimilar);
 	const setActiveTab = useAssetsPanelStore((s) => s.setActiveTab);
+
+	useActionHandler(
+		"autocut-open",
+		(target) => {
+			try {
+				useAutoCutStore
+					.getState()
+					.openPopup(snapshotAutoCutSelection(editor, target));
+			} catch (error) {
+				toast.error(
+					error instanceof Error ? error.message : "Select one video clip.",
+				);
+			}
+		},
+		undefined,
+	);
 
 	useActionHandler(
 		"toggle-play",

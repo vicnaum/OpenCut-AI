@@ -6,7 +6,7 @@ import {
 	TooltipContent,
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { SplitSquareHorizontal } from "lucide-react";
+import { Scissors, SplitSquareHorizontal } from "lucide-react";
 import {
 	SplitButton,
 	SplitButtonLeft,
@@ -79,6 +79,14 @@ export function TimelineToolbar({
 
 function ToolbarLeftSection() {
 	const editor = useEditor();
+	const selection = editor.selection.getSelectedElements();
+	const selectedClip =
+		selection.length === 1
+			? editor.timeline
+					.getTracks()
+					.find((track) => track.id === selection[0].trackId)
+					?.elements.find((element) => element.id === selection[0].elementId)
+			: undefined;
 	const currentTime = editor.playback.getCurrentTime();
 	const isCurrentlyBookmarked = editor.scenes.isBookmarked({ time: currentTime });
 
@@ -96,6 +104,23 @@ function ToolbarLeftSection() {
 	return (
 		<div className="flex items-center gap-1">
 			<TooltipProvider delayDuration={500}>
+				<Button
+					variant="text"
+					size="sm"
+					aria-label="AutoCut"
+					data-testid="timeline-autocut"
+					title={
+						selectedClip?.type === "video"
+							? "AutoCut selected clip"
+							: "Select one video clip to use AutoCut"
+					}
+					disabled={selectedClip?.type !== "video"}
+					onClick={(event) => handleAction({ action: "autocut-open", event })}
+				>
+					<Scissors className="size-4" />
+					AutoCut
+				</Button>
+				<div className="bg-border mx-1 h-6 w-px" />
 				<ToolbarButton
 					icon={<HugeiconsIcon icon={ScissorIcon} />}
 					tooltip="Split element"

@@ -32,8 +32,11 @@ export function checkAutoCutClip(element: VideoElement) {
 	}
 }
 
-export function snapshotAutoCutSelection(editor: EditorCore): AutoCutSnapshot {
-	const selected = editor.selection.getSelectedElements();
+export function snapshotAutoCutSelection(
+	editor: EditorCore,
+	target?: ElementRef,
+): AutoCutSnapshot {
+	const selected = target ? [target] : editor.selection.getSelectedElements();
 	if (selected.length !== 1)
 		throw new Error("Select one video clip on the timeline.");
 	const track = editor.timeline
