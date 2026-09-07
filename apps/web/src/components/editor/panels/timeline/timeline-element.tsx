@@ -3,6 +3,7 @@
 import { useEditor } from "@/hooks/use-editor";
 import { useAssetsPanelStore } from "@/stores/assets-panel-store";
 import AudioWaveform from "./audio-waveform";
+import { VideoFilmstrip } from "./video-filmstrip";
 import { useTimelineElementResize } from "@/hooks/timeline/element/use-element-resize";
 import {
 	useKeyframeDrag,
@@ -166,6 +167,7 @@ export function getDisplayShortcut({ action }: { action: TAction }) {
 }
 
 interface TimelineElementProps {
+	viewportRef: React.RefObject<HTMLDivElement | null>;
 	element: TimelineElementType;
 	track: TimelineTrack;
 	zoomLevel: number;
@@ -185,6 +187,7 @@ interface TimelineElementProps {
 }
 
 export function TimelineElement({
+	viewportRef,
 	element,
 	track,
 	zoomLevel,
@@ -285,6 +288,20 @@ export function TimelineElement({
 					}}
 				>
 					<ElementInner
+						filmstrip={{
+							viewportRef,
+							clipWidth: Math.max(0, elementWidth - 2 * ELEMENT_RING_WIDTH_PX),
+							clipDuration: displayedDuration,
+							position: displayedStartTime,
+							trimStart:
+								element.trimStart +
+								(isResizing
+									? (currentStartTime - element.startTime) *
+										("playbackRate" in element
+											? (element.playbackRate ?? 1)
+											: 1)
+									: 0),
+						}}
 						element={element}
 						track={track}
 						isSelected={isSelected}
@@ -369,6 +386,7 @@ export function TimelineElement({
 }
 
 function ElementInner({
+	filmstrip,
 	element,
 	track,
 	isSelected,
@@ -377,6 +395,10 @@ function ElementInner({
 	handleResizeStart,
 	isDropTarget = false,
 }: {
+	filmstrip: Pick<
+		ElementContentProps,
+		"viewportRef" | "clipWidth" | "clipDuration" | "position" | "trimStart"
+	>;
 	element: TimelineElementType;
 	track: TimelineTrack;
 	isSelected: boolean;
@@ -433,6 +455,7 @@ function ElementInner({
 				>
 					<div className="flex flex-1 min-h-0 items-center overflow-hidden">
 						<ElementContent
+							{...filmstrip}
 							element={element}
 							track={track}
 							isSelected={isSelected}
@@ -580,6 +603,11 @@ function KeyframeIndicators({
 }
 
 interface ElementContentProps {
+	viewportRef: React.RefObject<HTMLDivElement | null>;
+	clipWidth: number;
+	clipDuration: number;
+	trimStart: number;
+	position: number;
 	element: TimelineElementType;
 	track: TimelineTrack;
 	isSelected: boolean;
@@ -852,7 +880,16 @@ const ELEMENT_CONTENT_RENDERERS: Record<
 			</div>
 		);
 	},
-	video: ({ element, track, mediaAssets }) => {
+	video: ({
+		element,
+		track,
+		mediaAssets,
+		viewportRef,
+		clipWidth,
+		clipDuration,
+		trimStart,
+		position,
+	}) => {
 		const videoElement = element as Extract<
 			TimelineElementType,
 			{ type: "video" }
@@ -860,11 +897,18 @@ const ELEMENT_CONTENT_RENDERERS: Record<
 		const mediaAsset = mediaAssets.find(
 			(asset) => asset.id === videoElement.mediaId,
 		);
-		return renderTiledMedia({
-			element: videoElement,
-			imageUrl: mediaAsset?.thumbnailUrl,
-			track,
-		});
+		return (
+			<VideoFilmstrip
+				element={videoElement}
+				mediaAsset={mediaAsset ?? null}
+				viewportRef={viewportRef}
+				clipWidth={clipWidth}
+				clipDuration={clipDuration}
+				trimStart={trimStart}
+				position={position}
+				trackHeight={getTrackHeight({ type: track.type })}
+			/>
+		);
 	},
 	image: ({ element, track, mediaAssets }) => {
 		const imageElement = element as Extract<
@@ -882,15 +926,14 @@ const ELEMENT_CONTENT_RENDERERS: Record<
 	},
 };
 
-function ElementContent({ element, track, isSelected }: ElementContentProps) {
+function ElementContent(props: ElementContentProps) {
+	const { element } = props;
 	const editor = useEditor();
 	const renderer = ELEMENT_CONTENT_RENDERERS[element.type];
 	return (
 		<>
 			{renderer({
-				element,
-				track,
-				isSelected,
+				...props,
 				mediaAssets: editor.media.getAssets(),
 				editor,
 			})}

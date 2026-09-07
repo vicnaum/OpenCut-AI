@@ -1,147 +1,175 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useEditor } from "@/hooks/use-editor";
+import {
+	useEffect,
+	useMemo,
+	useReducer,
+	useState,
+	type RefObject,
+} from "react";
+import { filmstripGeometry, planFilmstrip } from "@/lib/timeline/filmstrip";
+import {
+	getFilmstripFrame,
+	requestFilmstrip,
+} from "@/services/filmstrip/service";
 import type { MediaAsset } from "@/types/assets";
-import type { VideoElement, ImageElement } from "@/types/timeline";
-
-interface FilmstripState {
-	thumbnails: string[];
-	loading: boolean;
-}
-
-const CACHE = new Map<string, string[]>();
-const MAX_CACHE_SIZE = 100;
-
-function pruneCache() {
-	if (CACHE.size > MAX_CACHE_SIZE) {
-		const keys = Array.from(CACHE.keys());
-		for (let i = 0; i < keys.length - MAX_CACHE_SIZE; i++) {
-			CACHE.delete(keys[i]);
-		}
-	}
-}
-
-async function generateFilmstrip({
-	mediaAsset,
-	numFrames,
-	width,
-	height,
-}: {
-	mediaAsset: MediaAsset;
-	numFrames: number;
-	width: number;
-	height: number;
-}): Promise<string[]> {
-	if (mediaAsset.type !== "video" || !mediaAsset.url) return [];
-
-	const cacheKey = `${mediaAsset.id}-${numFrames}-${width}`;
-	const cached = CACHE.get(cacheKey);
-	if (cached) return cached;
-
-	return new Promise((resolve) => {
-		const video = document.createElement("video");
-		video.crossOrigin = "anonymous";
-		video.muted = true;
-		video.preload = "auto";
-
-		const timeout = setTimeout(() => {
-			video.src = "";
-			resolve([]);
-		}, 10000);
-
-		video.onloadedmetadata = () => {
-			const duration = video.duration;
-			if (!duration || !isFinite(duration)) {
-				clearTimeout(timeout);
-				resolve([]);
-				return;
-			}
-
-			const frames: string[] = [];
-			const interval = duration / numFrames;
-
-			const captureFrame = (index: number) => {
-				if (index >= numFrames) {
-					clearTimeout(timeout);
-					CACHE.set(cacheKey, frames);
-					pruneCache();
-					resolve(frames);
-					return;
-				}
-
-				video.currentTime = interval * (index + 0.5);
-			};
-
-			video.onseeked = () => {
-				const canvas = document.createElement("canvas");
-				canvas.width = width;
-				canvas.height = height;
-				const ctx = canvas.getContext("2d");
-				if (!ctx) {
-					clearTimeout(timeout);
-					resolve(frames);
-					return;
-				}
-				ctx.drawImage(video, 0, 0, width, height);
-				frames.push(canvas.toDataURL("image/jpeg", 0.4));
-				captureFrame(frames.length);
-			};
-
-			captureFrame(0);
-		};
-
-		video.onerror = () => {
-			clearTimeout(timeout);
-			resolve([]);
-		};
-
-		video.src = mediaAsset.url ?? "";
-	});
-}
+import type { VideoElement } from "@/types/timeline";
 
 export function useFilmstrip({
 	mediaAsset,
+	element,
 	clipDuration,
-	visibleWidth,
+	trimStart,
+	clipWidth,
 	trackHeight,
+	position,
+	containerRef,
+	viewportRef,
 }: {
 	mediaAsset: MediaAsset | null;
+	element: VideoElement;
 	clipDuration: number;
-	visibleWidth: number;
+	trimStart: number;
+	clipWidth: number;
 	trackHeight: number;
-}): FilmstripState {
-	const [state, setState] = useState<FilmstripState>({ thumbnails: [], loading: false });
-	const abortRef = useRef(false);
-
-	const generate = useCallback(async () => {
-		if (!mediaAsset || mediaAsset.type !== "video" || clipDuration <= 0) {
-			setState({ thumbnails: [], loading: false });
-			return;
-		}
-
-		const thumbWidth = Math.max(40, Math.round(trackHeight * 16 / 9));
-		const numFrames = Math.max(1, Math.min(20, Math.ceil(visibleWidth / thumbWidth)));
-
-		setState({ thumbnails: [], loading: true });
-
-		const thumbnails = await generateFilmstrip({
-			mediaAsset,
-			numFrames,
-			width: thumbWidth,
-			height: trackHeight,
-		});
-
-		if (!abortRef.current) {
-			setState({ thumbnails, loading: false });
-		}
-	}, [mediaAsset?.id, clipDuration, visibleWidth, trackHeight]);
+	position: number;
+	containerRef: RefObject<HTMLDivElement | null>;
+	viewportRef: RefObject<HTMLDivElement | null>;
+}) {
+	const [visible, setVisible] = useState({ first: 0, last: -1 });
+	const [error, setError] = useState<string | null>(null);
+	const [, refresh] = useReducer((value) => value + 1, 0);
+	const { tileWidth, rasterHeight } = filmstripGeometry({
+		height: trackHeight,
+		mediaWidth: mediaAsset?.width,
+		mediaHeight: mediaAsset?.height,
+		pixelRatio: typeof window === "undefined" ? 1 : window.devicePixelRatio,
+	});
+	const file = mediaAsset?.file;
+	const mediaKey = file
+		? `${mediaAsset?.id}:${file.size}:${file.lastModified}:${file.name}`
+		: "";
 
 	useEffect(() => {
-		abortRef.current = false;
-		generate();
-		return () => {
-			abortRef.current = true;
+		const node = containerRef.current;
+		const viewport = viewportRef.current;
+		if (!node || !viewport || !Number.isFinite(position)) return;
+		let scheduled = 0;
+		const measure = () => {
+			scheduled = 0;
+			const rect = node.getBoundingClientRect();
+			const bounds = viewport.getBoundingClientRect();
+			const outside =
+				rect.bottom <= bounds.top ||
+				rect.top >= bounds.bottom ||
+				rect.right <= bounds.left ||
+				rect.left >= bounds.right;
+			const first = outside
+				? 0
+				: Math.max(
+						0,
+						Math.floor(Math.max(0, bounds.left - rect.left) / tileWidth) - 1,
+					);
+			const last = outside
+				? -1
+				: Math.min(
+						Math.ceil(clipWidth / tileWidth) - 1,
+						Math.floor(
+							Math.min(clipWidth, bounds.right - rect.left) / tileWidth,
+						) + 1,
+					);
+			setVisible((previous) =>
+				previous.first === first && previous.last === last
+					? previous
+					: { first, last },
+			);
 		};
-	}, [generate]);
+		const schedule = () => {
+			if (!scheduled) scheduled = requestAnimationFrame(measure);
+		};
+		const observer = new ResizeObserver(schedule);
+		observer.observe(viewport);
+		observer.observe(node);
+		// Track reordering can move an unchanged clip into view without resizing it.
+		const intersection = new IntersectionObserver(schedule, { root: viewport });
+		intersection.observe(node);
+		viewport.addEventListener("scroll", schedule, { passive: true });
+		schedule();
+		return () => {
+			cancelAnimationFrame(scheduled);
+			observer.disconnect();
+			intersection.disconnect();
+			viewport.removeEventListener("scroll", schedule);
+		};
+	}, [containerRef, viewportRef, clipWidth, tileWidth, position]);
 
-	return state;
+	const playbackRate = element.playbackRate ?? 1;
+	const animations = element.animations;
+	const sourceDuration =
+		mediaAsset?.duration ??
+		element.sourceDuration ??
+		trimStart + clipDuration * playbackRate;
+	const fps = mediaAsset?.fps ?? 30;
+	const tiles = useMemo(
+		() =>
+			planFilmstrip({
+				mediaKey,
+				clipWidth,
+				clipDuration,
+				tileWidth,
+				firstTile: visible.first,
+				lastTile: visible.last,
+				rasterHeight,
+				trimStart,
+				sourceDuration,
+				playbackRate,
+				animations,
+				fps,
+			}),
+		[
+			mediaKey,
+			clipWidth,
+			clipDuration,
+			tileWidth,
+			visible.first,
+			visible.last,
+			rasterHeight,
+			trimStart,
+			sourceDuration,
+			playbackRate,
+			animations,
+			fps,
+		],
+	);
+
+	useEffect(() => {
+		setError(null);
+		if (!file || !tiles.length) return;
+		let frame = 0;
+		const notify = () => {
+			if (!frame)
+				frame = requestAnimationFrame(() => {
+					frame = 0;
+					refresh();
+				});
+		};
+		const release = requestFilmstrip({
+			mediaKey,
+			file,
+			height: rasterHeight,
+			frames: tiles,
+			onUpdate: notify,
+			onError: setError,
+		});
+		notify();
+		return () => {
+			release();
+			cancelAnimationFrame(frame);
+		};
+	}, [file, mediaKey, rasterHeight, tiles]);
+
+	return {
+		tileWidth,
+		rasterHeight,
+		error,
+		tiles: tiles.map((tile) => ({ ...tile, url: getFilmstripFrame(tile.key) })),
+	};
 }

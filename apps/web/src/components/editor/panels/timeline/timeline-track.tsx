@@ -96,6 +96,7 @@ export function TimelineTrackContent({
 
 						return (
 							<TimelineElement
+								viewportRef={tracksScrollRef}
 								key={element.id}
 								element={element}
 								track={track}
