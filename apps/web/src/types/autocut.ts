@@ -21,6 +21,7 @@ export const autoCutSettingsSchema = z.object({
 	fine_workers: z.number().int().min(1).max(8).default(6),
 	proxy_width: z.enum(["480", "720", "1080", "source"]),
 	proxy_fps: z.enum(["auto", "15", "24", "25", "30", "50", "60"]),
+	proxy_quality: z.enum(["fast", "reference"]).default("fast"),
 	tone_map: z.literal("auto"),
 	keep_audio: z.boolean(),
 });
@@ -35,6 +36,7 @@ export const DEFAULT_AUTOCUT_SETTINGS: AutoCutSettings = {
 	fine_workers: 6,
 	proxy_width: "source",
 	proxy_fps: "auto",
+	proxy_quality: "fast",
 	tone_map: "auto",
 	keep_audio: true,
 };

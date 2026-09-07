@@ -45,7 +45,7 @@ describe("AutoCut processing protection", () => {
 			cutlist: {
 				trace: { empty_result_reason: "0 cuts: no completed actions" },
 			},
-		} as AutoCutJob;
+		} as unknown as AutoCutJob;
 		expect(autoCutProgressDetail(job, 100_000)).toBe(
 			"58.3 fps · ~20s left in this step",
 		);

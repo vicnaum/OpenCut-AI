@@ -304,6 +304,24 @@ export function AutoCutDialog() {
 								/>
 							</div>
 						</div>
+						<Choice
+							id="autocut-proxy-quality"
+							label="Conversion"
+							value={settings.proxy_quality}
+							options={[
+								{ value: "fast", label: "Fast" },
+								{ value: "reference", label: "Reference quality (Hable)" },
+							]}
+							onChange={(value) =>
+								setSettings({
+									proxy_quality: value as AutoCutSettings["proxy_quality"],
+								})
+							}
+						/>
+						<p className="text-xs text-muted-foreground">
+							Fast uses a different HDR tone curve. Reference quality preserves
+							the Hable look.
+						</p>
 						<div className="flex items-center gap-2">
 							<Checkbox
 								id="autocut-keep-audio"
