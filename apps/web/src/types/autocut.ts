@@ -34,7 +34,7 @@ export const DEFAULT_AUTOCUT_SETTINGS: AutoCutSettings = {
 	thinking_level: "high",
 	fine_thinking_level: "medium",
 	fine_workers: 6,
-	proxy_width: "source",
+	proxy_width: "720",
 	proxy_fps: "auto",
 	proxy_quality: "fast",
 	tone_map: "auto",

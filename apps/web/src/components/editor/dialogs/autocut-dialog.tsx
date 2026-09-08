@@ -382,9 +382,10 @@ export function AutoCutDialog() {
 									</p>
 								</div>
 								<p className="text-muted-foreground leading-relaxed">
-									Estimate includes {estimate.tokens.fine_windows} verification
-									windows of up to {estimate.tokens.fine_window_seconds} s.
-									Output and thinking cost extra.
+									Estimate assumes {estimate.tokens.fine_windows} verification
+									windows of about {estimate.tokens.fine_window_seconds} s, one
+									detail check per window and a final state comparison. Extra
+									checks, output and thinking cost more.
 									{estimate.tokens.agentic_static_baseline
 										? " Agentic sampling varies; this shows the static baseline."
 										: ""}
